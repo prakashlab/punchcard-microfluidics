@@ -3,6 +3,14 @@ import datetime
 from picamera import PiCamera
 #from scipy import misc
 
+import imaging
+
+led = imaging.DigitalPin(19)
+laser = imaging.DigitalPin(26)
+x_axis = imaging.StageAxis(23, 24, enable_pin=27)
+y_axis = imaging.StageAxis(14, 15, enable_pin=3)
+z_axis = imaging.StageAxis(16, 20)
+
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -16,49 +24,49 @@ class Application(tk.Frame):
         tog[0] = not tog[0]
         if tog[0]:
             self.btn_LED.config(relief='sunken')
-            ledON();
+            led.turn_on()
         else:
             self.btn_LED.config(relief='raised')
-            ledOFF();
+            led.turn_off()
 
     def toggle_laser(self,tog=[0]):
         tog[0] = not tog[0]
         if tog[0]:
             self.btn_laser.config(relief='sunken')
-            laserON();
+            laser.turn_on()
         else:
             self.btn_laser.config(relief='raised')
-            laserOFF();
+            laser.turn_off()
 
     def toggle_bf(self,tog=[0]):
         tog[0] = not tog[0]
         if tog[0]:
-            laserOFF();
+            laser.turn_off()
             self.btn_laser.config(relief='raised')
             self.btn_fluorescence.config(relief='raised')
             self.var_ss.set(self.var_ss_bf.get())
             self.btn_LED.config(relief='sunken')
             self.btn_bf.config(relief='sunken')
-            ledON();
+            led.turn_on()
         else:
             self.btn_LED.config(relief='raised')
             self.btn_bf.config(relief='raised')
-            ledOFF();
+            led.turn_off()
 
     def toggle_fluorescence(self,tog=[0]):
         tog[0] = not tog[0]
         if tog[0]:
-            ledOFF();
+            led.turn_off()
             self.btn_LED.config(relief='raised')
             self.btn_bf.config(relief='raised')
             self.var_ss.set(self.var_ss_fluorescence.get())
             self.btn_laser.config(relief='sunken')
             self.btn_fluorescence.config(relief='sunken')
-            laserON();
+            laser.turn_on()
         else:
             self.btn_laser.config(relief='raised')
             self.btn_fluorescence.config(relief='raised')
-            laserOFF();
+            laser.turn_off()
 
     ### create widgets ###
     def create_widgets(self):        
@@ -70,9 +78,9 @@ class Application(tk.Frame):
         self.entry_x_step.insert(0,"512")
         self.entry_x_delay.insert(0,"0.001")
         self.btn_x_forward = tk.Button(self, text="Forward",
-                              command=lambda:x_move('f',int(self.entry_x_step.get()),float(self.entry_x_delay.get())))
+                              command=lambda:x_axis.move('f',int(self.entry_x_step.get()),float(self.entry_x_delay.get())))
         self.btn_x_backward = tk.Button(self, text="Backward",
-                              command=lambda:x_move('b',int(self.entry_x_step.get()),float(self.entry_x_delay.get())))
+                              command=lambda:x_axis.move('b',int(self.entry_x_step.get()),float(self.entry_x_delay.get())))
 
         # y #
         self.label_y = tk.Label(self,text='y')
@@ -81,9 +89,9 @@ class Application(tk.Frame):
         self.entry_y_step.insert(0,"512")
         self.entry_y_delay.insert(0,"0.001")
         self.btn_y_forward = tk.Button(self, text="Forward",
-                              command=lambda:y_move('f',int(self.entry_y_step.get()),float(self.entry_y_delay.get())))
+                              command=lambda:y_axis.move('f',int(self.entry_y_step.get()),float(self.entry_y_delay.get())))
         self.btn_y_backward = tk.Button(self, text="Backward",
-                              command=lambda:y_move('b',int(self.entry_y_step.get()),float(self.entry_y_delay.get())))
+                              command=lambda:y_axis.move('b',int(self.entry_y_step.get()),float(self.entry_y_delay.get())))
 
         # z #
         self.label_z = tk.Label(self,text='z')
@@ -92,9 +100,9 @@ class Application(tk.Frame):
         self.entry_z_step.insert(0,"32")
         self.entry_z_delay.insert(0,"0.001")
         self.btn_z_forward = tk.Button(self, text="Forward",
-                              command=lambda:z_move('f',int(self.entry_z_step.get()),float(self.entry_z_delay.get())))
+                              command=lambda:z_axis.move('f',int(self.entry_z_step.get()),float(self.entry_z_delay.get())))
         self.btn_z_backward = tk.Button(self, text="Backward",
-                              command=lambda:z_move('b',int(self.entry_z_step.get()),float(self.entry_z_delay.get())))
+                              command=lambda:z_axis.move('b',int(self.entry_z_step.get()),float(self.entry_z_delay.get())))
 
         
         # quit
@@ -226,84 +234,8 @@ import RPi.GPIO as GPIO
 from time import sleep
 import time
 
-# pin def
-ledPIN = 19
-laserPIN = 26
-x_stepPin = 23
-x_dirPin = 24
-x_enablePin = 27
-y_stepPin = 14
-y_dirPin = 15
-y_enablePin = 3
-
-z_stepPin = 16
-z_dirPin = 20
-
 def initDriver():
 	GPIO.setmode(GPIO.BCM)  # set board mode to Broadcom
-	
-	GPIO.setup(ledPIN, GPIO.OUT)
-	GPIO.setup(laserPIN, GPIO.OUT)
-	
-	GPIO.setup(x_stepPin, GPIO.OUT)
-	GPIO.setup(x_dirPin, GPIO.OUT)
-	GPIO.setup(x_enablePin, GPIO.OUT)
-	GPIO.setup(y_stepPin, GPIO.OUT)
-	GPIO.setup(y_dirPin, GPIO.OUT)
-	GPIO.setup(y_enablePin, GPIO.OUT)
-	GPIO.setup(z_stepPin, GPIO.OUT)
-	GPIO.setup(z_dirPin, GPIO.OUT)
-
-	
-	
-def ledON():
-	GPIO.output(ledPIN,1)
-
-def ledOFF():
-	GPIO.output(ledPIN,0)
-
-def laserON():
-	GPIO.output(laserPIN,1)
-
-def laserOFF():
-	GPIO.output(laserPIN,0)
-
-def x_move(direction,steps,dt):
-    if 'f' == direction:
-        GPIO.output(x_dirPin, 0)
-    else:
-        GPIO.output(x_dirPin, 1)
-    GPIO.output(x_enablePin, 0)
-    for i in range(steps):
-        GPIO.output(x_stepPin,0)
-        sleep(dt/2)
-        GPIO.output(x_stepPin,1)
-        sleep(dt/2)
-    GPIO.output(x_enablePin, 1)
-		
-def y_move(direction,steps,dt):
-    if 'f' == direction:
-        GPIO.output(y_dirPin, 0)
-    else:
-        GPIO.output(y_dirPin, 1)
-    GPIO.output(y_enablePin, 0)
-    for i in range(steps):
-        GPIO.output(y_stepPin,0)
-        sleep(dt/2)
-        GPIO.output(y_stepPin,1)
-        sleep(dt/2)
-    GPIO.output(y_enablePin, 1)
-		
-def z_move(direction,steps,dt):
-    if 'f' == direction:
-        GPIO.output(z_dirPin, 0)
-    else:
-        GPIO.output(z_dirPin, 1)
-    for i in range(steps):
-        GPIO.output(z_stepPin,0)
-        sleep(dt/2)
-        GPIO.output(z_stepPin,1)
-        sleep(dt/2)
 
 # camera control
 
@@ -355,14 +287,14 @@ def autofocus(N,step):
   for i in range(N):
     j = j + 1
     # actuate
-    z_move('f',step,0.001)
+    z_axis.move('f',step,0.001)
     sleep(0.005)
     img = np.empty((1920 * 1088 * 3,), dtype=np.uint8)
     #camera.capture(img,'rgb',use_video_port=True)
-    ledON();
+    led.turn_on()
     camera.capture(img,'rgb',use_video_port=False)
     sleep(0.005)
-    ledOFF();
+    led.turn_off()
     # img = misc.imread(filename)
     img = img.reshape(1088,1920,3)
     ROI = img[540-256+1:540+256,960-256+1:960+256,1]
@@ -381,18 +313,18 @@ def autofocus(N,step):
   idx = FM.index(max(FM))
   print(idx)
   # plt.plot(FM)
-  z_move('b',step*j,dt)
-  z_move('f',step*(idx+1),dt)
+  z_axis.move('b',step*j,dt)
+  z_axis.move('f',step*(idx+1),dt)
   camera.resolution = '1920x1080'
-  ledON();
+  led.turn_on()
 #======================================================================#
 #======================================================================#
 #======================================================================#
 
 # init.
 initDriver()
-#ledOFF();
-#laserOFF();
+#led.turn_off()
+#laser.turn_off()
 
 # set up camera
 camera = PiCamera(resolution='3280x2464',sensor_mode=2,framerate=15)
