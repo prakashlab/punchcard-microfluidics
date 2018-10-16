@@ -122,7 +122,7 @@ class Application(tk.Frame):
               'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
           )
           self.entry_ss_fluorescence = tk.Entry(
-              self, width = 6, textvariable=self.var_ss_fluorescence
+              self, width=6, textvariable=self.var_ss_fluorescence
           )
           self.entry_ss_fluorescence.insert(0, '200')
           self.btn_fluorescence = tk.Button(
@@ -136,7 +136,7 @@ class Application(tk.Frame):
           self.label_zoom = tk.Label(self,text='Zoom')
           self.scale_zoom = tk.Scale(
               self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL,
-              length = 275, command=lambda value:self.camera.set_roi(float(value))
+              length=275, command=lambda value:self.camera.set_roi(float(value))
           )
           self.scale_zoom.set(1)
           self.label_zoom.grid(row=10, column=0, sticky=tk.W)
@@ -150,19 +150,20 @@ class Application(tk.Frame):
           self.entry_filename.grid(row=12, column=1, columnspan=4, sticky=tk.W)
           # capture
           self.btn_capture = tk.Button(
-              self, text='Capture', fg='black', bg = 'yellow', width = 32, height = 2,
-              command=lambda:self.camera.capture(
-                  self.entry_filename.get(), self.entry_ss.get(), self.scale_zoom.get()
-              )
+              self, text='Capture', fg='black', bg='yellow', width=32, height=2,
+              command=lambda: self.camera.capture('{}_{}x_{}us'.format(
+                  self.entry_filename.get(), int(self.scale_zoom.get()),
+                  self.entry_ss.get()
+              ))
           )
-          self.btn_capture.grid(row=13,column=0,columnspan=5,rowspan=2)
+          self.btn_capture.grid(row=13, column=0, columnspan=5, rowspan=2)
 
     def create_widgets(self):
           # quit
           self.quit = tk.Button(self, text='QUIT', fg='red', command=root.destroy)
           # seperation
-          self.label_seperator = tk.Label(self,text='  ')
-          self.label_seperator.grid(row=4,column=0)
+          self.label_seperator = tk.Label(self, text='  ')
+          self.label_seperator.grid(row=4, column=0)
 
           # shutter speed
           self.create_shutter_speed_widgets()
@@ -171,23 +172,23 @@ class Application(tk.Frame):
           self.create_illumination_widgets()
 
           # seperation
-          self.label_seperator = tk.Label(self,text='  ')
-          self.label_seperator.grid(row=6,column=0)
+          self.label_seperator = tk.Label(self, text='  ')
+          self.label_seperator.grid(row=6, column=0)
 
           # preset modes
           self.create_bf_preset_widgets()
           self.create_fluorescence_preset_widgets()
 
           # seperation
-          self.label_seperator = tk.Label(self,text='  ')
-          self.label_seperator.grid(row=9,column=0)
+          self.label_seperator = tk.Label(self, text='  ')
+          self.label_seperator.grid(row=9, column=0)
 
           # zoom
           self.create_zoom_widgets()
 
           # seperation
-          self.label_seperator = tk.Label(self,text='  ')
-          self.label_seperator.grid(row=11,column=0)
+          self.label_seperator = tk.Label(self, text='  ')
+          self.label_seperator.grid(row=11, column=0)
 
           # capture
           self.create_capture_widgets()
@@ -203,10 +204,10 @@ if __name__ == '__main__':
         iso=60, exposure_mode='off', shutter_speed=500,
         awb_mode='off', awb_gains=(2, 1)
     )
-    #led.turn_off()
-    #laser.turn_off()
 
-    camera.pi_camera.start_preview(resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616))
+    camera.pi_camera.start_preview(
+        resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616)
+    )
 
     # create GUI
     root = tk.Tk()

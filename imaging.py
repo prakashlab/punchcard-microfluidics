@@ -40,6 +40,7 @@ class Camera(object):
         awb_mode='off', awb_gains=(2, 1)
     ):
         self.pi_camera = pi_camera
+        time.sleep(2)
         pi_camera.iso = iso
         pi_camera.exposure_mode = exposure_mode
         pi_camera.shutter_speed = shutter_speed
@@ -63,14 +64,13 @@ class Camera(object):
         self.pi_camera.shutter_speed = speed_int
 
     def capture(
-        self, filename_prefix, shutter_speed, zoom, resolution=(3280, 2464)
+        self, filename_prefix, resolution=(3280, 2464)
     ):
-        timestamp = '{:%Y-%m-%d %H-%M-%S-%f}'.format(
+        timestamp = '{:%Y-%m-%d_%H-%M-%S-%f}'.format(
             datetime.datetime.now()
         )[:-3]
-        filename = '{}_{}x_{}us_{}.jpeg'.format(
-            filename_prefix, int(zoom), shutter_speed, timestamp
-        )
+        filename = '{}_{}.jpeg'.format(filename_prefix, timestamp)
         print('Saving capture to:', filename)
-        self.pi_camera.resolution = resolution
+        if resolution is not None:
+            self.pi_camera.resolution = resolution
         self.pi_camera.capture(filename)
