@@ -2,79 +2,73 @@ import tkinter as tk
 
 from picamera import PiCamera
 
+import gpio
 import imaging
-
-led = imaging.DigitalPin(19)
-laser = imaging.DigitalPin(26)
-camera = imaging.Camera(
-  PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
-  # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
-  # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
-  iso=60, exposure_mode='off', shutter_speed=500,
-  awb_mode='off', awb_gains=(2, 1)
-)
 
 
 class Application(tk.Frame):
-    def __init__(self, master=None):
-        super().__init__(master)
-        #self.pack()
-        self.grid()
-        self.create_widgets()
+    def __init__(self, led, laser, camera, master=None):
+      self.led = led
+      self.laser = laser
+      self.camera = camera
+      super().__init__(master)
+      #self.pack()
+      self.grid()
+      self.create_widgets()
 
     ### define methods ###
     def toggle_LED(self,tog=[0]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.btn_LED.config(relief='sunken')
-            led.turn_on()
-        else:
-            self.btn_LED.config(relief='raised')
-            led.turn_off()
+      tog[0] = not tog[0]
+      if tog[0]:
+          self.btn_LED.config(relief='sunken')
+          self.led.turn_on()
+      else:
+          self.btn_LED.config(relief='raised')
+          self.led.turn_off()
 
     def toggle_laser(self,tog=[0]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.btn_laser.config(relief='sunken')
-            laser.turn_on()
-        else:
-            self.btn_laser.config(relief='raised')
-            laser.turn_off()
+      tog[0] = not tog[0]
+      if tog[0]:
+          self.btn_laser.config(relief='sunken')
+          self.laser.turn_on()
+      else:
+          self.btn_laser.config(relief='raised')
+          self.laser.turn_off()
 
     def toggle_bf(self,tog=[0]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            laser.turn_off()
-            self.btn_laser.config(relief='raised')
-            self.btn_fluorescence.config(relief='raised')
-            self.var_ss.set(self.var_ss_bf.get())
-            self.btn_LED.config(relief='sunken')
-            self.btn_bf.config(relief='sunken')
-            led.turn_on()
-        else:
-            self.btn_LED.config(relief='raised')
-            self.btn_bf.config(relief='raised')
-            led.turn_off()
+      tog[0] = not tog[0]
+      if tog[0]:
+          self.laser.turn_off()
+          self.btn_laser.config(relief='raised')
+          self.btn_fluorescence.config(relief='raised')
+          self.var_ss.set(self.var_ss_bf.get())
+          self.btn_LED.config(relief='sunken')
+          self.btn_bf.config(relief='sunken')
+          self.led.turn_on()
+      else:
+          self.btn_LED.config(relief='raised')
+          self.btn_bf.config(relief='raised')
+          self.led.turn_off()
 
     def toggle_fluorescence(self,tog=[0]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            led.turn_off()
-            self.btn_LED.config(relief='raised')
-            self.btn_bf.config(relief='raised')
-            self.var_ss.set(self.var_ss_fluorescence.get())
-            self.btn_laser.config(relief='sunken')
-            self.btn_fluorescence.config(relief='sunken')
-            laser.turn_on()
-        else:
-            self.btn_laser.config(relief='raised')
-            self.btn_fluorescence.config(relief='raised')
-            laser.turn_off()
+      tog[0] = not tog[0]
+      if tog[0]:
+          self.led.turn_off()
+          self.btn_LED.config(relief='raised')
+          self.btn_bf.config(relief='raised')
+          self.var_ss.set(self.var_ss_fluorescence.get())
+          self.btn_laser.config(relief='sunken')
+          self.btn_fluorescence.config(relief='sunken')
+          self.laser.turn_on()
+      else:
+          self.btn_laser.config(relief='raised')
+          self.btn_fluorescence.config(relief='raised')
+          self.laser.turn_off()
 
     def set_shutter_speed(self):
       try:
         shutter_speed = float(self.var_ss.get())
-        camera.set_shutter_speed(shutter_speed)
+        self.camera.set_shutter_speed(shutter_speed)
       except ValueError:
         pass
 
@@ -148,7 +142,7 @@ class Application(tk.Frame):
                                   resolution=1,
                                   orient=tk.HORIZONTAL,
                                   length = 275,
-                                  command=lambda value:camera.set_roi(float(value)))
+                                  command=lambda value:self.camera.set_roi(float(value)))
         self.scale_zoom.set(1)
         self.label_zoom.grid(row=10,column=0,sticky=tk.W)
         self.scale_zoom.grid(row=10,column=1,columnspan=4,sticky=tk.W)
@@ -171,25 +165,32 @@ class Application(tk.Frame):
         # capture
         self.btn_capture = tk.Button(
           self, text="Capture", fg="black", bg = "yellow", width = 32, height = 2,
-          command=lambda:camera.capture(
+          command=lambda:self.camera.capture(
             self.entry_filename.get(), self.entry_ss.get(), self.scale_zoom.get()
           )
         )
         self.btn_capture.grid(row=15,column=0,columnspan=5,rowspan=2)
 
-### LED, stepper control ###
-import RPi.GPIO as GPIO
 
-# init
-#led.turn_off()
-#laser.turn_off()
+if __name__ == '__main__':
+  led = gpio.DigitalPin(19)
+  laser = gpio.DigitalPin(26)
+  camera = imaging.Camera(
+    PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+    # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+    # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+    iso=60, exposure_mode='off', shutter_speed=500,
+    awb_mode='off', awb_gains=(2, 1)
+  )
+  #led.turn_off()
+  #laser.turn_off()
 
-camera.pi_camera.start_preview(resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616))
+  camera.pi_camera.start_preview(resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616))
 
-# create GUI
-root = tk.Tk()
-app = Application(master=root)
-app.mainloop()
+  # create GUI
+  root = tk.Tk()
+  app = Application(led, laser, camera, master=root)
+  app.mainloop()
 
-# exit routine
-GPIO.cleanup()
+  # exit routine
+  gpio.cleanup()
