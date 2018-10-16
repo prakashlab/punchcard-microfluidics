@@ -51,7 +51,7 @@ class Application(tk.Frame):
         tog[0] = not tog[0]
         if tog[0]:
             self.disable_laser()
-            self.btn_fluorescence.config(relief='raised')
+            self.btn_fluor.config(relief='raised')
             self.btn_bf.config(relief='sunken')
             self.var_ss.set(self.var_ss_bf.get())
             self.enable_led()
@@ -59,16 +59,16 @@ class Application(tk.Frame):
             self.btn_bf.config(relief='raised')
             self.disable_led()
 
-    def toggle_fluorescence(self,tog=[0]):
+    def toggle_fluor(self,tog=[0]):
         tog[0] = not tog[0]
         if tog[0]:
             self.disable_led()
-            self.btn_fluorescence.config(relief='sunken')
+            self.btn_fluor.config(relief='sunken')
             self.btn_bf.config(relief='raised')
-            self.var_ss.set(self.var_ss_fluorescence.get())
+            self.var_ss.set(self.var_ss_fluor.get())
             self.enable_laser()
         else:
-            self.btn_fluorescence.config(relief='raised')
+            self.btn_fluor.config(relief='raised')
             self.disable_laser()
 
     def set_shutter_speed(self):
@@ -115,22 +115,22 @@ class Application(tk.Frame):
         self.entry_ss_bf.grid(row=7, column=1, sticky=tk.W)
         self.btn_bf.grid(row=7, column=3, columnspan=2)
 
-    def create_fluorescence_preset_widgets(self):
-          self.label_ss_fluorescence = tk.Label(self,text='SS (ms)')
-          self.var_ss_fluorescence = tk.StringVar()
-          self.var_ss_fluorescence.trace(
+    def create_fluor_preset_widgets(self):
+          self.label_ss_fluor = tk.Label(self,text='SS (ms)')
+          self.var_ss_fluor = tk.StringVar()
+          self.var_ss_fluor.trace(
               'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
           )
-          self.entry_ss_fluorescence = tk.Entry(
-              self, width=6, textvariable=self.var_ss_fluorescence
+          self.entry_ss_fluor = tk.Entry(
+              self, width=6, textvariable=self.var_ss_fluor
           )
-          self.entry_ss_fluorescence.insert(0, '200')
-          self.btn_fluorescence = tk.Button(
-              self, text='Fluorescence', fg='black', command=self.toggle_fluorescence
+          self.entry_ss_fluor.insert(0, '200')
+          self.btn_fluor = tk.Button(
+              self, text='Fluorescence', fg='black', command=self.toggle_fluor
           )
-          self.label_ss_fluorescence.grid(row=8, column=0, sticky=tk.W)
-          self.entry_ss_fluorescence.grid(row=8, column=1, sticky=tk.W)
-          self.btn_fluorescence.grid(row=8, column=3, columnspan=2)
+          self.label_ss_fluor.grid(row=8, column=0, sticky=tk.W)
+          self.entry_ss_fluor.grid(row=8, column=1, sticky=tk.W)
+          self.btn_fluor.grid(row=8, column=3, columnspan=2)
 
     def create_zoom_widgets(self):
           self.label_zoom = tk.Label(self,text='Zoom')
@@ -177,7 +177,7 @@ class Application(tk.Frame):
 
           # preset modes
           self.create_bf_preset_widgets()
-          self.create_fluorescence_preset_widgets()
+          self.create_fluor_preset_widgets()
 
           # seperation
           self.label_seperator = tk.Label(self, text='  ')
