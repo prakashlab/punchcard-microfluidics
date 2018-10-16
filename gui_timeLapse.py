@@ -10,6 +10,13 @@ laser = imaging.DigitalPin(26)
 x_axis = imaging.StageAxis(23, 24, enable_pin=27)
 y_axis = imaging.StageAxis(14, 15, enable_pin=3)
 z_axis = imaging.StageAxis(16, 20)
+camera = imaging.Camera(
+  PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+  # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+  # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
+  iso=60, exposure_mode='off', shutter_speed=500,
+  awb_mode='off', awb_gains=(2, 1)
+)
 
 
 class Application(tk.Frame):
@@ -185,7 +192,7 @@ class Application(tk.Frame):
                                   resolution=1,
                                   orient=tk.HORIZONTAL,
                                   length = 275,
-                                  command=lambda value:setROI(float(value)))
+                                  command=lambda value:camera.set_roi(float(value)))
         self.scale_zoom.set(1)
         self.label_zoom.grid(row=10,column=0,sticky=tk.W)
         self.scale_zoom.grid(row=10,column=1,columnspan=4,sticky=tk.W)
@@ -222,11 +229,12 @@ class Application(tk.Frame):
         self.entry_filename.grid(row=14,column=1,columnspan=4,sticky=tk.W)
 
         # capture
-        self.btn_capture = tk.Button(self, text="Capture", fg="black", bg = "yellow",
-                                     width = 32, height = 2,
-                                     command=lambda:capture(self.entry_filename.get(),
-                                                            self.entry_ss.get(),
-                                                            self.scale_zoom.get()))
+        self.btn_capture = tk.Button(
+          self, text="Capture", fg="black", bg = "yellow", width = 32, height = 2,
+          command=lambda:camera.capture(
+            self.entry_filename.get(), self.entry_ss.get(), self.scale_zoom.get()
+          )
+        )
         self.btn_capture.grid(row=15,column=0,columnspan=5,rowspan=2)
 
 ### LED, stepper control ###
@@ -234,39 +242,14 @@ import RPi.GPIO as GPIO
 from time import sleep
 import time
 
-def initDriver():
-	GPIO.setmode(GPIO.BCM)  # set board mode to Broadcom
-
 # camera control
 
-def setROI(zoom):
-  x_start = 0.5 - 1/(2*zoom)
-  y_start = 0.5 - 1/(2*zoom)
-  width = 1/zoom
-  height = 1/zoom
-  print(1/zoom)
-  camera.zoom = (x_start,y_start,width,height)
-
 def ss_update(var_ss):
-  tmp = var_ss.get()
-  if tmp == '':
-    print(0)
-  else:
-    ss = int(float(tmp)*1000)
-    framerate_current = camera.framerate
-    framerate_new = int(1000000/float(ss))  
-    camera.framerate = min(framerate_new,30)
-    camera.shutter_speed = ss
-
-def capture(prefix,ss,zoom):
-  filename = (prefix +
-        '_' + str(int(zoom)) + 'x' +
-        '_' + str(ss) + 'us' +
-        '_' + '{:%Y-%m-%d %H-%M-%S-%f}'.format(datetime.datetime.now())[:-3]
-              )
-  print(filename)
-  camera.resolution = (3280, 2464)
-  camera.capture(filename + '.jpeg')
+  try:
+    shutter_speed = float(var_ss.get())
+    camera.set_shutter_speed(shutter_speed)
+  except ValueError:
+    pass
 
 # import matplotlib.pyplot as plt
 
@@ -283,16 +266,16 @@ def autofocus(N,step):
   prefix = 'Z autofocus, 1080p'
 
   timestamp = time.time()
-  camera.resolution = '1920x1080'
+  camera.pi_camera.resolution = '1920x1080'
   for i in range(N):
     j = j + 1
     # actuate
     z_axis.move('f',step,0.001)
     sleep(0.005)
     img = np.empty((1920 * 1088 * 3,), dtype=np.uint8)
-    #camera.capture(img,'rgb',use_video_port=True)
+    #camera.pi_camera.capture(img,'rgb',use_video_port=True)
     led.turn_on()
-    camera.capture(img,'rgb',use_video_port=False)
+    camera.pi_camera.capture(img,'rgb',use_video_port=False)
     sleep(0.005)
     led.turn_off()
     # img = misc.imread(filename)
@@ -315,27 +298,17 @@ def autofocus(N,step):
   # plt.plot(FM)
   z_axis.move('b',step*j,dt)
   z_axis.move('f',step*(idx+1),dt)
-  camera.resolution = '1920x1080'
+  camera.pi_camera.resolution = '1920x1080'
   led.turn_on()
 #======================================================================#
 #======================================================================#
 #======================================================================#
 
 # init.
-initDriver()
 #led.turn_off()
 #laser.turn_off()
 
-# set up camera
-camera = PiCamera(resolution='3280x2464',sensor_mode=2,framerate=15)
-# camera = PiCamera(resolution='1920x1080',sensor_mode=2,framerate=15)
-# camera = PiCamera(resolution='1920x1080',sensor_mode=1,framerate = 30)
-camera.iso = 60
-camera.exposure_mode = 'off'
-camera.shutter_speed = 500
-camera.awb_mode = 'off'
-camera.awb_gains = (2,1)
-camera.start_preview(resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616))
+camera.pi_camera.start_preview(resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616))
 
 # create GUI
 root = tk.Tk()

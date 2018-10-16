@@ -1,3 +1,4 @@
+import datetime
 import time
 
 from picamera import PiCamera
@@ -49,3 +50,44 @@ class StageAxis(object):
             time.sleep(dt / 2)
         if self.enable_pin is not None:
             self.enable_pin.turn_on()
+
+class Camera(object):
+    def __init__(
+        self, pi_camera, iso=60, exposure_mode='off', shutter_speed=500,
+        awb_mode='off', awb_gains=(2, 1)
+    ):
+        self.pi_camera = pi_camera
+        pi_camera.iso = iso
+        pi_camera.exposure_mode = exposure_mode
+        pi_camera.shutter_speed = shutter_speed
+        pi_camera.awb_mode = awb_mode
+        pi_camera.awb_gains = awb_gains
+        self.zoom = None
+
+    def set_roi(self, zoom):
+        self.zoom = zoom
+        x_start = 0.5 - 1 / (2 * zoom)
+        y_start = x_start
+        width = 1 / zoom
+        height = width
+        self.pi_camera.zoom = (x_start, y_start, width, height)
+
+    def set_shutter_speed(self, shutter_speed):
+        speed_int = int(float(shutter_speed) * 1000)
+        current_framerate = self.pi_camera.framerate
+        new_framerate = int(1000000 / float(speed_int))
+        self.pi_camera.framerate = min(new_framerate, 30)
+        self.pi_camera.shutter_speed = speed_int
+
+    def capture(
+        self, filename_prefix, shutter_speed, zoom, resolution=(3280, 2464)
+    ):
+        timestamp = '{:%Y-%m-%d %H-%M-%S-%f}'.format(
+            datetime.datetime.now()
+        )[:-3]
+        filename = '{}_{}x_{}us_{}.jpeg'.format(
+            filename_prefix, int(zoom), shutter_speed, timestamp
+        )
+        print('Saving capture to:', filename)
+        self.pi_camera.resolution = resolution
+        self.pi_camera.capture(filename)
