@@ -32,7 +32,7 @@ class AnalogPin(object):
         self.last_reading = None
 
     def read_raw(self, gain=1):
-        raw_reading = adc.read_adc(self.adc_pin, gain=gain)
+        raw_reading = self.adc.read_adc(self.adc_pin, gain=gain)
         self.last_raw_reading = raw_reading
         return raw_reading
 
@@ -41,6 +41,23 @@ class AnalogPin(object):
         reading = 4.096 * float(raw_reading) / 32767
         self.last_reading = reading
         return reading
+
+class HBridgeDevice(object):
+    def __init__(self, pin_1, pin_2):
+        self.digital_pin_1 = DigitalPin(pin_1)
+        self.digital_pin_2 = DigitalPin(pin_2)
+
+    def turn_on_forwards(self):
+        self.digital_pin_2.turn_off()
+        self.digital_pin_1.turn_on()
+
+    def turn_on_backwards(self):
+        self.digital_pin_1.turn_off()
+        self.digital_pin_2.turn_on()
+
+    def turn_off(self):
+        self.digital_pin_1.turn_off()
+        self.digital_pin_2.turn_off()
 
 class Thermistor(object):
     def __init__(self, reference_pin, thermistor_pin):

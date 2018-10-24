@@ -195,8 +195,8 @@ class Application(tk.Frame):
 
 
 if __name__ == '__main__':
-    led = gpio.DigitalPin(19)
-    laser = gpio.DigitalPin(26)
+    led = gpio.DigitalPin(22)
+    laser = gpio.DigitalPin(17)
     camera = imaging.Camera(
         PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
         # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
