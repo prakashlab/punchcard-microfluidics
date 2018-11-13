@@ -2,7 +2,6 @@ import tkinter as tk
 import datetime
 import Adafruit_ADS1x15
 from Adafruit_MotorHAT import Adafruit_MotorHAT
-import numpy as np
 import time
 import atexit
 
@@ -11,8 +10,8 @@ import gpio
 heater = gpio.DigitalPin(18)
 motors = Adafruit_MotorHAT(addr=0x60)
 adc = Adafruit_ADS1x15.ADS1115()
-ref_voltage = gpio.AnalogPin(adc, 0)
-thermistor = gpio.Thermistor(ref_voltage, gpio.AnalogPin(adc, 1))
+ref_voltage = gpio.AnalogPin(adc, 3)
+thermistor = gpio.Thermistor(ref_voltage, gpio.AnalogPin(adc, 0))
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -80,9 +79,6 @@ class Application(tk.Frame):
             self.disable_motor()
 
     def updater(self):
-        A = 0.001125308852122
-        B = 0.000234711863267
-        C = 0.000000085663516
         heater_setpoint = None
         if self.heater_setpoint_1_control:
             heater_setpoint = float(self.entry_heater_setpoint_1.get())
@@ -91,15 +87,12 @@ class Application(tk.Frame):
             heater_setpoint = float(self.entry_heater_setpoint_2.get())
             btn_heater_setpoint = self.btn_heater_setpoint_2
 
-        (thermistor_reading, thermistor_referenced_reading) = thermistor.read(gain=1)
-        if thermistor_referenced_reading > 0:
-            R_thermistor = thermistor_reading * 1962 / thermistor_referenced_reading # in the code, thermistor had 1966 instead of 1962
-            T_thermistor = (1/(A + B*np.log(R_thermistor) + C*(np.log(R_thermistor))**3)) - 273.15
-            #T_thermistor = 1/(1/298.15 + (1/3950)*np.log(R_thermistor/10000)) - 273.15
-            self.entry_heater_temp.config(text = format(T_thermistor,'.2f'))
+        T = thermistor.read()
+        if T is not None:
+            self.entry_heater_temp.config(text = format(T,'.2f'))
 
             if heater_setpoint is not None:
-                if T_thermistor < heater_setpoint:
+                if T < heater_setpoint:
                     btn_heater_setpoint.config(fg='red')
                     heater.turn_on()
                 else:
