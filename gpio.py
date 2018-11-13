@@ -1,6 +1,7 @@
 import datetime
-import math
 import time
+
+import numpy as np
 
 import RPi.GPIO as GPIO
 
@@ -38,31 +39,42 @@ analog_pin_differentials = {
     (2, 3): 3
 }
 
-def analog_raw_to_volt(analog_raw):
-    return 4.096 * float(analog_raw) / 32767
+gain_voltage_maxes = {
+    1: 4.096,
+    2: 2.048,
+    4: 1.024,
+    8: 0.512,
+    16: 0.256
+}
 
 
 class AnalogPin(object):
-    def __init__(self, adc, adc_pin):
+    def __init__(self, adc, adc_pin, gain=1, adc_max=32767):
         self.adc = adc
         self.adc_pin = adc_pin
+        self.adc_max = float(adc_max)
+        self.gain = gain
+        try:
+            self.voltage_max = gain_voltage_maxes[gain]
+        except KeyError:
+            raise ValueError('Unsupported ADC gain: {}'.format(gain))
         self.last_raw_reading = None
         self.last_reading = None
 
-    def read_raw(self, gain=1):
-        raw_reading = self.adc.read_adc(self.adc_pin, gain=gain)
+    def read_raw(self):
+        raw_reading = self.adc.read_adc(self.adc_pin, gain=self.gain)
         self.last_raw_reading = raw_reading
         return raw_reading
 
-    def read(self, gain=1):
-        raw_reading = self.read_raw(gain=gain)
-        reading = analog_raw_to_volt(raw_reading)
+    def read(self):
+        raw_reading = self.read_raw()
+        reading = self.voltage_max * float(raw_reading) / self.adc_max
         self.last_reading = reading
         return reading
 
 class DifferentialAnalogPin(AnalogPin):
-    def __init__(self, adc, adc_pin, ref_pin):
-        super().__init__(adc, adc_pin)
+    def __init__(self, *args, ref_pin, **kwargs):
+        super().__init__(*args, **kwargs)
         self.ref_pin = ref_pin
         try:
             self.adc_pin_differential = analog_pin_differentials[(adc_pin, ref_pin)]
@@ -72,10 +84,14 @@ class DifferentialAnalogPin(AnalogPin):
                 'and referencing pin {}!'.format(adc_pin, ref_pin)
             )
 
-    def read_raw(self, gain=1):
-        raw_reading = self.adc.read_adc_difference(self.adc_pin_differential, gain=gain)
+    def read_raw(self):
+        raw_reading = self.adc.read_adc_difference(
+            self.adc_pin_differential, gain=self.gain
+        )
         self.last_raw_reading = raw_reading
         return raw_reading
+
+# Components
 
 class HBridgeDevice(object):
     def __init__(self, pin_1, pin_2):
@@ -95,30 +111,58 @@ class HBridgeDevice(object):
         self.digital_pin_2.turn_off()
 
 class Thermistor(object):
-    def __init__(self, reference_pin, thermistor_pin):
+    def __init__(
+        self, reference_pin, thermistor_pin, bias_resistance=1962,
+        A=1.125308852122e-03, B=2.34711863267e-04, C=8.5663516e-08
+    ):
         self.reference_pin = reference_pin
         self.thermistor_pin = thermistor_pin
         self.reading = None
         self.referenced_reading = None
-        self.A = 0.001125308852122
-        self.B = 0.000234711863267
-        self.C = 0.000000085663516
+        self.bias_resistance = bias_resistance
+        self.A = A
+        self.B = B
+        self.C = C
 
-    def read_voltage(self, gain=1):
-        v_ref = self.reference_pin.read(gain)
-        v_reading = self.thermistor_pin.read(gain)
-        self.reading = v_reading
-        self.referenced_reading = v_ref - v_reading
+    def calibrate_steinhart_hart(self, temperature_resistance_pairs, unit='C'):
+        (temperatures, resistances) = zip(*temperature_resistance_pairs)
+
+        T = np.array(temperatures)
+        if unit == 'K':
+            pass
+        elif unit == 'C':
+            T = T + 273.15
+        else:
+            raise ValueError('Unknown temperature unit: {}'.format(unit))
+        b = 1 / T
+
+        R = np.expand_dims(np.array(resistances), axis=1)
+        A = np.hstack((np.ones_like(R), np.log(R), np.power(np.log(R), 3)))
+        (coeffs, residuals, rank, singular_values) = np.linalg.lstsq(A, b)
+        (self.A, self.B, self.C) = coeffs
+        return (coeffs, residuals)
+
+    def read_voltage(self):
+        ref = self.reference_pin.read_raw()
+        reading = self.thermistor_pin.read_raw()
+        self.reading = reading
+        self.referenced_reading = ref - reading
         return (self.reading, self.referenced_reading)
 
-    def read(self, unit='C'):
-        (voltage, referenced_voltage) = self.read_voltage()
-        if referenced_voltage <= 0:
+    def read_resistance(self):
+        (reading, referenced_reading) = self.read_voltage()
+        print(reading, referenced_reading)
+        if referenced_reading <= 0:
             return None
 
-        R = voltage * 1962 / referenced_voltage # in the other code, it was 1966 instead of 1962
-        T_Kelvin = 1 / (self.A + self.B * math.log(R) + self.C * math.pow(math.log(R), 3))
-        # T_Kelvin = 1 / (1 / 298.15 + (1 / 3950) * np.log(R_thermistor / 10000))
+        return reading * self.bias_resistance / referenced_reading
+
+    def read(self, unit='C'):
+        R = self.read_resistance()
+        if R is None:
+            return None
+
+        T_Kelvin = 1 / (self.A + self.B * np.log(R) + self.C * np.power(np.log(R), 3))
         if unit == 'K':
             return T_Kelvin
         elif unit == 'C':

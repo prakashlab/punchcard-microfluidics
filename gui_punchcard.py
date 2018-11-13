@@ -1,9 +1,10 @@
 import tkinter as tk
 import datetime
-import Adafruit_ADS1x15
-from Adafruit_MotorHAT import Adafruit_MotorHAT
 import time
 import atexit
+
+import Adafruit_ADS1x15
+from Adafruit_MotorHAT import Adafruit_MotorHAT
 
 import gpio
 
