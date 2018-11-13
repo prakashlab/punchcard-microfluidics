@@ -8,7 +8,7 @@ import atexit
 
 import gpio
 
-heater = gpio.HBridgeDevice(4, 18)
+heater = gpio.DigitalPin(18)
 motors = Adafruit_MotorHAT(addr=0x60)
 adc = Adafruit_ADS1x15.ADS1115()
 ref_voltage = gpio.AnalogPin(adc, 0)
@@ -101,7 +101,7 @@ class Application(tk.Frame):
             if heater_setpoint is not None:
                 if T_thermistor < heater_setpoint:
                     btn_heater_setpoint.config(fg='red')
-                    heater.turn_on_forwards()
+                    heater.turn_on()
                 else:
                     btn_heater_setpoint.config(fg='blue')
                     heater.turn_off()
