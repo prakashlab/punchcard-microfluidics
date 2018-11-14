@@ -12,7 +12,13 @@ heater = gpio.DigitalPin(18)
 motors = Adafruit_MotorHAT(addr=0x60)
 adc = Adafruit_ADS1x15.ADS1115()
 ref_voltage = gpio.AnalogPin(adc, 3)
-thermistor = gpio.Thermistor(ref_voltage, gpio.AnalogPin(adc, 0))
+thermistor = gpio.Thermistor(
+    ref_voltage, gpio.AnalogPin(adc, 0),
+    bias_resistance=1960,
+    A=0.0010349722285233954,
+    B=0.00022717987892035313,
+    C=3.008424040777896e-07
+)
 
 class Application(tk.Frame):
     def __init__(self, master=None):

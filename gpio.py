@@ -151,7 +151,6 @@ class Thermistor(object):
 
     def read_resistance(self):
         (reading, referenced_reading) = self.read_voltage()
-        print(reading, referenced_reading)
         if referenced_reading <= 0:
             return None
 
