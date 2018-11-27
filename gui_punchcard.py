@@ -19,6 +19,7 @@ thermistor = gpio.Thermistor(
     B=0.00022717987892035313,
     C=3.008424040777896e-07
 )
+temperature_print_interval = 15 # s
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -32,27 +33,44 @@ class Application(tk.Frame):
         self.heater = heater
         self.heater_setpoint_1_control = False
         self.heater_setpoint_2_control = False
+        self.last_temperature = None
+        self.first_temperature_time = None
+        self.last_temperature_index = None
+        self.printing_temperature = False
 
         self.updater()
 
     ### define methods ###
+    def reset_temperature_printing(self):
+        self.last_temperature_index = None
+        self.first_temperature_time = None
+        self.printing_temperature = True
+
     def enable_heater_setpoint_1(self):
         self.btn_heater_setpoint_1.config(relief='sunken')
         self.heater_setpoint_1_control = True
+        self.reset_temperature_printing()
+        print('Heater setpoint 1 enabled!')
 
     def disable_heater_setpoint_1(self):
         self.btn_heater_setpoint_1.config(relief='raised')
         self.heater_setpoint_1_control = False
         self.btn_heater_setpoint_1.config(fg='black')
+        self.reset_temperature_printing()
+        print('Heater setpoint 1 disabled!')
 
     def enable_heater_setpoint_2(self):
         self.btn_heater_setpoint_2.config(relief='sunken')
         self.heater_setpoint_2_control = True
+        self.reset_temperature_printing()
+        print('Heater setpoint 2 enabled!')
 
     def disable_heater_setpoint_2(self):
         self.btn_heater_setpoint_2.config(relief='raised')
         self.heater_setpoint_2_control = False
         self.btn_heater_setpoint_2.config(fg='black')
+        self.reset_temperature_printing()
+        print('Heater setpoint 2 disabled!')
 
     def enable_motor(self):
         self.btn_motor.config(relief='sunken')
@@ -109,6 +127,25 @@ class Application(tk.Frame):
                 self.btn_heater_setpoint_1.config(fg='black')
                 self.btn_heater_setpoint_2.config(fg='black')
                 heater.turn_off()
+
+            current_time = time.time()
+            if (
+                self.printing_temperature and (
+                    self.last_temperature_index is None
+                    or (
+                        current_time - self.first_temperature_time
+                        - self.last_temperature_index * temperature_print_interval
+                        > 0
+                    )
+                )
+            ):
+                if self.first_temperature_time is None:
+                    self.first_temperature_time = current_time
+                    self.last_temperature_index = 0
+                print('{:.1f} s: {:.1f} deg C'.format(
+                    current_time - self.first_temperature_time, T
+                ))
+                self.last_temperature_index += 1
         else:
             self.entry_heater_temp.config(text = '-')
 
