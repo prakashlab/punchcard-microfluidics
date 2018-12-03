@@ -18,6 +18,7 @@ class DigitalPin(object):
         GPIO.setup(pin, GPIO.OUT)
         self.state = None
         self.set_state(False)
+        self.after_state_change = None
 
     def set_state(self, state):
         GPIO.output(self.pin, state)
@@ -25,9 +26,21 @@ class DigitalPin(object):
 
     def turn_on(self):
         self.set_state(True)
+        if callable(self.after_state_change):
+            self.after_state_change(self.state)
 
     def turn_off(self):
         self.set_state(False)
+        if callable(self.after_state_change):
+            self.after_state_change(self.state)
+
+    def toggle(self):
+        prev_state = self.state
+        if prev_state:
+            self.turn_off()
+        else:
+            self.turn_on()
+        return self.state
 
 
 # Analog IO

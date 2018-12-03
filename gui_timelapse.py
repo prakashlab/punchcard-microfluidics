@@ -18,56 +18,34 @@ class Application(tk.Frame):
         self.create_widgets()
 
     ### define methods ###
-    def enable_led(self):
-        self.btn_LED.config(relief='sunken')
-        self.led.turn_on()
-
-    def disable_led(self):
-          self.btn_LED.config(relief='raised')
-          self.led.turn_off()
-
-    def enable_laser(self, index):
-          self.btns_laser[index].config(relief='sunken')
-          self.lasers[index].turn_on()
-
-    def disable_laser(self, index):
-        self.btns_laser[index].config(relief='raised')
-        self.lasers[index].turn_off()
-
-    def disable_lasers(self):
-        for (index, laser) in enumerate(self.lasers):
-            self.disable_laser(index)
-
-    def toggle_led(self, tog=[False]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.enable_led()
+    def on_led_state_change(self, state):
+        if state:
+            self.btn_LED.config(relief='sunken')
         else:
-            self.disable_led()
+            self.btn_LED.config(relief='raised')
 
-    def toggle_laser(self, index, tog={}):
-        if index not in tog:
-            tog[index] = False
-        tog[index] = not tog[index]
-        for tog_index in tog:
-            if tog_index != index:
-                tog[tog_index] = False
-                self.disable_laser(tog_index)
-        if tog[index]:
-            self.enable_laser(index)
+    def on_laser_state_change(self, index, state):
+        if state:
+            self.btns_laser[index].config(relief='sunken')
         else:
-            self.disable_laser(index)
+            self.btns_laser[index].config(relief='raised')
+
+    def toggle_laser(self, index):
+        for (laser_index, laser) in enumerate(self.lasers):
+            if laser_index != index:
+                self.lasers[laser_index].turn_off()
+        self.lasers[index].toggle()
 
     def enable_bf(self):
         for (index, laser) in enumerate(self.lasers):
             self.disable_fluor(index)
         self.btn_bf.config(relief='sunken')
         self.var_ss.set(self.var_ss_bf.get())
-        self.enable_led()
+        self.led.turn_on()
 
     def disable_bf(self):
             self.btn_bf.config(relief='raised')
-            self.disable_led()
+            self.led.turn_off()
 
     def toggle_bf(self, tog=[False]):
         tog[0] = not tog[0]
@@ -77,17 +55,17 @@ class Application(tk.Frame):
             self.disable_bf()
 
     def enable_fluor(self, index):
-        self.disable_led()
+        self.led.turn_off()
         self.btn_bf.config(relief='raised')
         for (fluor_index, laser) in enumerate(self.lasers):
             self.disable_fluor(fluor_index)
         self.btns_fluor[index].config(relief='sunken')
         self.var_ss.set(self.var_ss_fluor.get())
-        self.enable_laser(index)
+        self.lasers[index].turn_on()
 
     def disable_fluor(self, index):
         self.btns_fluor[index].config(relief='raised')
-        self.disable_laser(index)
+        self.lasers[index].turn_off()
 
     def toggle_fluor(self, index, tog={}):
         if index not in tog:
@@ -122,8 +100,9 @@ class Application(tk.Frame):
 
     def create_illumination_widgets(self):
         self.btn_LED = tk.Button(
-            self, text='LED', fg='black', command=self.toggle_led
+            self, text='LED', fg='black', command=self.led.toggle
         )
+        self.led.after_state_change = self.on_led_state_change
         self.btns_laser = [
             tk.Button(
                 self, text='laser {}'.format(index), fg='blue',
@@ -131,6 +110,8 @@ class Application(tk.Frame):
             )
             for (index, laser) in enumerate(self.lasers)
         ]
+        for (index, laser) in enumerate(self.lasers):
+            laser.after_state_change = functools.partial(self.on_laser_state_change, index)
         self.btn_LED.grid(row=5, column=3)
         for (index, laser) in enumerate(self.lasers):
             self.btns_laser[index].grid(row=5, column=4 + index)
