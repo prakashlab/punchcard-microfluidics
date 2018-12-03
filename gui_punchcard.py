@@ -1,15 +1,12 @@
 import tkinter as tk
 import datetime
 import time
-import atexit
 
 import Adafruit_ADS1x15
-from Adafruit_MotorHAT import Adafruit_MotorHAT
 
 import gpio
 
 heater = gpio.DigitalPin(18)
-motors = Adafruit_MotorHAT(addr=0x60)
 adc = Adafruit_ADS1x15.ADS1115()
 ref_voltage = gpio.AnalogPin(adc, 3)
 thermistor = gpio.Thermistor(
@@ -28,8 +25,6 @@ class Application(tk.Frame):
         self.grid()
         self.create_widgets()
 
-        self.motor = motors.getMotor(1)
-        self.motor.setSpeed(150)
         self.heater = heater
         self.heater_setpoint_1_control = False
         self.heater_setpoint_2_control = False
@@ -72,15 +67,7 @@ class Application(tk.Frame):
         self.reset_temperature_printing()
         print('Heater setpoint 2 disabled!')
 
-    def enable_motor(self):
-        self.btn_motor.config(relief='sunken')
-        self.motor.run(Adafruit_MotorHAT.FORWARD)
-
-    def disable_motor(self):
-        self.btn_motor.config(relief='raised')
-        self.motor.run(Adafruit_MotorHAT.RELEASE)
-
-    def toggle_heater_setpoint_1(self,tog=[0]):
+    def toggle_heater_setpoint_1(self,tog=[False]):
         tog[0] = not tog[0]
         if tog[0]:
             self.disable_heater_setpoint_2()
@@ -88,20 +75,13 @@ class Application(tk.Frame):
         else:
             self.disable_heater_setpoint_1()
 
-    def toggle_heater_setpoint_2(self,tog=[0]):
+    def toggle_heater_setpoint_2(self,tog=[False]):
         tog[0] = not tog[0]
         if tog[0]:
             self.disable_heater_setpoint_1()
             self.enable_heater_setpoint_2()
         else:
             self.disable_heater_setpoint_2()
-
-    def toggle_motor(self,tog=[0]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.enable_motor()
-        else:
-            self.disable_motor()
 
     def updater(self):
         heater_setpoint = None
@@ -160,8 +140,6 @@ class Application(tk.Frame):
                               command=self.toggle_heater_setpoint_1)
         self.btn_heater_setpoint_2 = tk.Button(self, text="Heater Setpoint 2", fg="black",
                               command=self.toggle_heater_setpoint_2)
-        self.btn_motor = tk.Button(self, text="Motor", fg="black",
-                              command=self.toggle_motor)
 
         self.entry_heater_setpoint_1 = tk.Entry(self,width = 5)
         self.entry_heater_setpoint_2 = tk.Entry(self,width = 5)
@@ -176,19 +154,12 @@ class Application(tk.Frame):
                               command=root.destroy)
         #self.quit.pack(side="left")
 
-        self.btn_motor.grid(row=0,column=0)
         self.btn_heater_setpoint_1.grid(row=1,column=0)
         self.btn_heater_setpoint_2.grid(row=2,column=0)
         self.entry_heater_setpoint_1.grid(row=1,column=1)
         self.entry_heater_setpoint_2.grid(row=2,column=1)
         self.label_heater_temp.grid(row=3,column=0)
         self.entry_heater_temp.grid(row=3,column=1)
-
-def turnOffMotors():
-    for i in range(1, 4 + 1):
-        motors.getMotor(i).run(Adafruit_MotorHAT.RELEASE)
-
-atexit.register(turnOffMotors)
 
 
 # create GUI
