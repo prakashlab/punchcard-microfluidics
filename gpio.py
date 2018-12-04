@@ -9,30 +9,23 @@ def cleanup():
     GPIO.cleanup()
 
 
-# Digital IO
+# State
 
-class DigitalPin(object):
-    def __init__(self, pin):
-        GPIO.setmode(GPIO.BCM)
-        self.pin = pin
-        GPIO.setup(pin, GPIO.OUT)
+class BinaryState(object):
+    def __init__(self):
         self.state = None
-        self.set_state(False)
         self.after_state_change = None
 
     def set_state(self, state):
-        GPIO.output(self.pin, state)
         self.state = state
+        if callable(self.after_state_change):
+            self.after_state_change(self.state)
 
     def turn_on(self):
         self.set_state(True)
-        if callable(self.after_state_change):
-            self.after_state_change(self.state)
 
     def turn_off(self):
         self.set_state(False)
-        if callable(self.after_state_change):
-            self.after_state_change(self.state)
 
     def toggle(self):
         prev_state = self.state
@@ -41,6 +34,21 @@ class DigitalPin(object):
         else:
             self.turn_on()
         return self.state
+
+
+# Digital IO
+
+class DigitalPin(BinaryState):
+    def __init__(self, pin, initial_state=False):
+        super().__init__()
+        GPIO.setmode(GPIO.BCM)
+        self.pin = pin
+        GPIO.setup(pin, GPIO.OUT)
+        self.set_state(initial_state)
+
+    def set_state(self, state):
+        GPIO.output(self.pin, state)
+        super().set_state(state)
 
 
 # Analog IO

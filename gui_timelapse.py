@@ -12,8 +12,15 @@ class Application(tk.Frame):
         self.led = led
         self.lasers = lasers
         self.camera = camera
+        self.last_shutter_speed = None
+        self.bf = gpio.BinaryState()
+        self.bf.after_state_change = self.on_bf_state_change
+        self.fluors = [gpio.BinaryState() for laser in self.lasers]
+        for (index, fluor) in enumerate(self.fluors):
+            fluor.after_state_change = functools.partial(
+                self.on_fluor_state_change, index
+            )
         super().__init__(master)
-        #self.pack()
         self.grid()
         self.create_widgets()
 
@@ -36,53 +43,36 @@ class Application(tk.Frame):
                 self.lasers[laser_index].turn_off()
         self.lasers[index].toggle()
 
-    def enable_bf(self):
-        for (index, laser) in enumerate(self.lasers):
-            self.disable_fluor(index)
-        self.btn_bf.config(relief='sunken')
-        self.var_ss.set(self.var_ss_bf.get())
-        self.led.turn_on()
-
-    def disable_bf(self):
+    def on_bf_state_change(self, state):
+        if state:
+            for fluor in self.fluors:
+                fluor.turn_off()
+            self.btn_bf.config(relief='sunken')
+            self.var_ss.set(self.var_ss_bf.get())
+        else:
             self.btn_bf.config(relief='raised')
-            self.led.turn_off()
+        self.led.set_state(state)
 
-    def toggle_bf(self, tog=[False]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.enable_bf()
+    def on_fluor_state_change(self, index, state):
+        if state:
+            self.bf.turn_off()
+            for (fluor_index, fluor) in enumerate(self.fluors):
+                if fluor_index != index:
+                    fluor.turn_off()
+            self.btns_fluor[index].config(relief='sunken')
+            self.var_ss.set(self.vars_ss_fluor[index].get())
+            self.lasers[index].turn_on()
         else:
-            self.disable_bf()
-
-    def enable_fluor(self, index):
-        self.led.turn_off()
-        self.btn_bf.config(relief='raised')
-        for (fluor_index, laser) in enumerate(self.lasers):
-            self.disable_fluor(fluor_index)
-        self.btns_fluor[index].config(relief='sunken')
-        self.var_ss.set(self.var_ss_fluor.get())
-        self.lasers[index].turn_on()
-
-    def disable_fluor(self, index):
-        self.btns_fluor[index].config(relief='raised')
-        self.lasers[index].turn_off()
-
-    def toggle_fluor(self, index, tog={}):
-        if index not in tog:
-            tog[index] = False
-        tog[index] = not tog[index]
-        if tog[index]:
-            self.enable_fluor(index)
-            for fluor_index in tog:
-                if index != fluor_index:
-                    tog[fluor_index] = False
-        else:
-            self.disable_fluor(index)
+            self.btns_fluor[index].config(relief='raised')
+            self.lasers[index].turn_off()
 
     def set_shutter_speed(self):
         try:
             shutter_speed = float(self.var_ss.get())
+            if self.last_shutter_speed == shutter_speed:
+                return
             self.camera.set_shutter_speed(shutter_speed)
+            self.last_shutter_speed = shutter_speed
         except ValueError:
             pass
 
@@ -91,7 +81,8 @@ class Application(tk.Frame):
         self.label_ss = tk.Label(self, text='SS (ms)')
         self.var_ss = tk.StringVar()
         self.var_ss.trace(
-            'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
+            'w', lambda name, index, mode,
+            var_ss=self.var_ss: self.set_shutter_speed()
         )
         self.entry_ss = tk.Entry(self, width=6,textvariable=self.var_ss)
         self.entry_ss.insert(0, '2')
@@ -111,7 +102,9 @@ class Application(tk.Frame):
             for (index, laser) in enumerate(self.lasers)
         ]
         for (index, laser) in enumerate(self.lasers):
-            laser.after_state_change = functools.partial(self.on_laser_state_change, index)
+            laser.after_state_change = functools.partial(
+                self.on_laser_state_change, index
+            )
         self.btn_LED.grid(row=5, column=3)
         for (index, laser) in enumerate(self.lasers):
             self.btns_laser[index].grid(row=5, column=4 + index)
@@ -122,95 +115,107 @@ class Application(tk.Frame):
         self.var_ss_bf.trace(
             'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
         )
-        self.entry_ss_bf = tk.Entry(self, width = 6, textvariable=self.var_ss_bf)
+        self.entry_ss_bf = tk.Entry(self, width=6, textvariable=self.var_ss_bf)
         self.entry_ss_bf.insert(0, '2')
         self.btn_bf = tk.Button(
-            self, text='Bright Field', fg='black', command=self.toggle_bf
+            self, text='Bright Field', fg='black', command=self.bf.toggle
         )
         self.label_ss_bf.grid(row=7, column=0, sticky=tk.W)
         self.entry_ss_bf.grid(row=7, column=1, sticky=tk.W)
         self.btn_bf.grid(row=7, column=3, columnspan=2)
 
     def create_fluor_preset_widgets(self, index):
-          self.label_ss_fluor = tk.Label(self,text='SS (ms)')
-          self.var_ss_fluor = tk.StringVar()
-          self.var_ss_fluor.trace(
-              'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
-          )
-          self.entry_ss_fluor = tk.Entry(
-              self, width=6, textvariable=self.var_ss_fluor
-          )
-          self.entry_ss_fluor.insert(0, '200')
-          self.btns_fluor[index] = tk.Button(
-              self, text='Fluorescence {}'.format(index), fg='black',
-              command=functools.partial(self.toggle_fluor, index)
-          )
-          self.label_ss_fluor.grid(row=8 + index, column=0, sticky=tk.W)
-          self.entry_ss_fluor.grid(row=8 + index, column=1, sticky=tk.W)
-          self.btns_fluor[index].grid(row=8 + index, column=3, columnspan=2)
+        label_ss_fluor = tk.Label(self, text='SS (ms)')
+        self.vars_ss_fluor[index] = tk.StringVar()
+        self.vars_ss_fluor[index].trace(
+            'w', lambda name, index, mode, var_ss=self.var_ss: self.set_shutter_speed()
+        )
+        self.entries_ss_fluor[index] = tk.Entry(
+            self, width=6, textvariable=self.vars_ss_fluor[index]
+        )
+        self.entries_ss_fluor[index].insert(0, '200')
+        self.btns_fluor[index] = tk.Button(
+            self, text='Fluorescence {}'.format(index), fg='black',
+            command=self.fluors[index].toggle
+        )
+        label_ss_fluor.grid(row=8 + index, column=0, sticky=tk.W)
+        self.entries_ss_fluor[index].grid(row=8 + index, column=1, sticky=tk.W)
+        self.btns_fluor[index].grid(row=8 + index, column=3, columnspan=2)
 
     def create_zoom_widgets(self):
-          self.label_zoom = tk.Label(self,text='Zoom')
-          self.scale_zoom = tk.Scale(
-              self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL,
-              length=275, command=lambda value:self.camera.set_roi(float(value))
-          )
-          self.scale_zoom.set(1)
-          self.label_zoom.grid(row=10 + len(self.lasers), column=0, sticky=tk.W)
-          self.scale_zoom.grid(row=10 + len(self.lasers), column=1, columnspan=4, sticky=tk.W)
+        self.label_zoom = tk.Label(self, text='Zoom')
+        self.scale_zoom = tk.Scale(
+            self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL,
+            length=275, command=lambda value: self.camera.set_roi(float(value))
+        )
+        self.scale_zoom.set(1)
+        self.label_zoom.grid(row=10 + len(self.lasers), column=0, sticky=tk.W)
+        self.scale_zoom.grid(
+            row=10 + len(self.lasers), column=1, columnspan=4, sticky=tk.W
+        )
 
     def create_capture_widgets(self):
-          # filename
-          self.label_filename = tk.Label(self, text='Prefix')
-          self.entry_filename = tk.Entry(self, width=31)
-          self.label_filename.grid(row=12 + len(self.lasers), column=0, sticky=tk.W)
-          self.entry_filename.grid(row=12 + len(self.lasers), column=1, columnspan=4, sticky=tk.W)
-          # capture
-          self.btn_capture = tk.Button(
-              self, text='Capture', fg='black', bg='yellow', width=32, height=2,
-              command=lambda: self.camera.capture('{}_{}x_{}us'.format(
-                  self.entry_filename.get(), int(self.scale_zoom.get()),
-                  self.entry_ss.get()
-              ))
-          )
-          self.btn_capture.grid(row=13 + len(self.lasers), column=0, columnspan=5, rowspan=2)
+        # filename
+        self.label_filename = tk.Label(self, text='Prefix')
+        self.entry_filename = tk.Entry(self, width=31)
+        self.label_filename.grid(
+            row=12 + len(self.lasers), column=0, sticky=tk.W
+        )
+        self.entry_filename.grid(
+            row=12 + len(self.lasers), column=1, columnspan=4, sticky=tk.W
+        )
+        # capture
+        self.btn_capture = tk.Button(
+            self, text='Capture', fg='black', bg='yellow', width=32, height=2,
+            command=lambda: self.camera.capture('{}_{}x_{}us'.format(
+                self.entry_filename.get(), int(self.scale_zoom.get()),
+                self.entry_ss.get()
+            ))
+        )
+        self.btn_capture.grid(
+            row=13 + len(self.lasers), column=0, columnspan=5, rowspan=2
+        )
 
     def create_widgets(self):
-          # quit
-          self.quit = tk.Button(self, text='QUIT', fg='red', command=root.destroy)
-          # seperation
-          self.label_seperator = tk.Label(self, text='  ')
-          self.label_seperator.grid(row=4, column=0)
+        # quit
+        self.quit = tk.Button(
+            self, text='QUIT', fg='red', command=root.destroy
+        )
+        # seperation
+        self.label_seperator = tk.Label(self, text='  ')
+        self.label_seperator.grid(row=4, column=0)
 
-          # shutter speed
-          self.create_shutter_speed_widgets()
+        # shutter speed
+        self.create_shutter_speed_widgets()
 
-          # LED and laser
-          self.create_illumination_widgets()
+        # LED and laser
+        self.create_illumination_widgets()
 
-          # seperation
-          self.label_seperator = tk.Label(self, text='  ')
-          self.label_seperator.grid(row=6, column=0)
+        # seperation
+        self.label_seperator = tk.Label(self, text='  ')
+        self.label_seperator.grid(row=6, column=0)
 
-          # preset modes
-          self.create_bf_preset_widgets()
-          self.btns_fluor = [None for laser in self.lasers]
-          for (index, laser) in enumerate(self.lasers):
-              self.create_fluor_preset_widgets(index)
+        # preset modes
+        self.create_bf_preset_widgets()
+        self.entries_ss_fluor = [None for laser in self.lasers]
+        self.vars_ss_fluor = [None for laser in self.lasers]
+        self.btns_fluor = [None for laser in self.lasers]
+        for (index, laser) in enumerate(self.lasers):
+            self.create_fluor_preset_widgets(index)
 
-          # seperation
-          self.label_seperator = tk.Label(self, text='  ')
-          self.label_seperator.grid(row=9 + len(self.lasers), column=0)
+        # seperation
+        self.label_seperator = tk.Label(self, text='  ')
+        self.label_seperator.grid(row=9 + len(self.lasers), column=0)
 
-          # zoom
-          self.create_zoom_widgets()
+        # zoom
+        self.create_zoom_widgets()
 
-          # seperation
-          self.label_seperator = tk.Label(self, text='  ')
-          self.label_seperator.grid(row=11 + len(self.lasers), column=0)
+        # seperation
+        self.label_seperator = tk.Label(self, text='  ')
+        self.label_seperator.grid(row=11 + len(self.lasers), column=0)
 
-          # capture
-          self.create_capture_widgets()
+        # capture
+        self.create_capture_widgets()
 
 
 if __name__ == '__main__':
@@ -229,7 +234,7 @@ if __name__ == '__main__':
     )
 
     camera.pi_camera.start_preview(
-        resolution=(1640, 1232),fullscreen=False, window=(800, 0, 820, 616)
+        resolution=(1640, 1232), fullscreen=False, window=(800, 0, 820, 616)
     )
 
     # create GUI

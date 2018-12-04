@@ -26,8 +26,12 @@ class Application(tk.Frame):
         self.create_widgets()
 
         self.heater = heater
-        self.heater_setpoint_1_control = False
-        self.heater_setpoint_2_control = False
+        self.heater_setpoint_1 = gpio.BinaryState()
+        self.heater_setpoint_1.after_state_change = \
+            self.on_heater_setpoint_1_state_change
+        self.heater_setpoint_2 = gpio.BinaryState()
+        self.heater_setpoint_2.after_state_change = \
+            self.on_heater_setpoint_2_state_change
         self.last_temperature = None
         self.first_temperature_time = None
         self.last_temperature_index = None
@@ -41,54 +45,42 @@ class Application(tk.Frame):
         self.first_temperature_time = None
         self.printing_temperature = True
 
-    def enable_heater_setpoint_1(self):
-        self.btn_heater_setpoint_1.config(relief='sunken')
-        self.heater_setpoint_1_control = True
-        self.reset_temperature_printing()
-        print('Heater setpoint 1 enabled!')
-
-    def disable_heater_setpoint_1(self):
-        self.btn_heater_setpoint_1.config(relief='raised')
-        self.heater_setpoint_1_control = False
-        self.btn_heater_setpoint_1.config(fg='black')
-        self.reset_temperature_printing()
-        print('Heater setpoint 1 disabled!')
-
-    def enable_heater_setpoint_2(self):
-        self.btn_heater_setpoint_2.config(relief='sunken')
-        self.heater_setpoint_2_control = True
-        self.reset_temperature_printing()
-        print('Heater setpoint 2 enabled!')
-
-    def disable_heater_setpoint_2(self):
-        self.btn_heater_setpoint_2.config(relief='raised')
-        self.heater_setpoint_2_control = False
-        self.btn_heater_setpoint_2.config(fg='black')
-        self.reset_temperature_printing()
-        print('Heater setpoint 2 disabled!')
-
-    def toggle_heater_setpoint_1(self,tog=[False]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.disable_heater_setpoint_2()
-            self.enable_heater_setpoint_1()
+    def on_heater_setpoint_1_state_change(self, state):
+        if state:
+            self.btn_heater_setpoint_1.config(relief='sunken')
+            print('Heater setpoint 1 enabled!')
         else:
-            self.disable_heater_setpoint_1()
+            self.btn_heater_setpoint_1.config(relief='raised')
+            self.btn_heater_setpoint_1.config(fg='black')
+            print('Heater setpoint 1 disabled!')
+        self.reset_temperature_printing()
 
-    def toggle_heater_setpoint_2(self,tog=[False]):
-        tog[0] = not tog[0]
-        if tog[0]:
-            self.disable_heater_setpoint_1()
-            self.enable_heater_setpoint_2()
+    def on_heater_setpoint_2_state_change(self, state):
+        if state:
+            self.btn_heater_setpoint_2.config(relief='sunken')
+            print('Heater setpoint 2 enabled!')
         else:
-            self.disable_heater_setpoint_2()
+            self.btn_heater_setpoint_2.config(relief='raised')
+            self.btn_heater_setpoint_2.config(fg='black')
+            print('Heater setpoint 2 disabled!')
+        self.reset_temperature_printing()
+
+    def toggle_heater_setpoint_1(self):
+        self.heater_setpoint_1.toggle()
+        if self.heater_setpoint_1.state:
+            self.heater_setpoint_2.turn_off()
+
+    def toggle_heater_setpoint_2(self):
+        self.heater_setpoint_2.toggle()
+        if self.heater_setpoint_2.state:
+            self.heater_setpoint_1.turn_off()
 
     def updater(self):
         heater_setpoint = None
-        if self.heater_setpoint_1_control:
+        if self.heater_setpoint_1.state:
             heater_setpoint = float(self.entry_heater_setpoint_1.get())
             btn_heater_setpoint = self.btn_heater_setpoint_1
-        elif self.heater_setpoint_2_control:
+        elif self.heater_setpoint_2.state:
             heater_setpoint = float(self.entry_heater_setpoint_2.get())
             btn_heater_setpoint = self.btn_heater_setpoint_2
 
@@ -136,10 +128,14 @@ class Application(tk.Frame):
     ### create widgets ###
     def create_widgets(self):
         # Heater 1 and Heater 2
-        self.btn_heater_setpoint_1 = tk.Button(self, text="Heater Setpoint 1", fg="black",
-                              command=self.toggle_heater_setpoint_1)
-        self.btn_heater_setpoint_2 = tk.Button(self, text="Heater Setpoint 2", fg="black",
-                              command=self.toggle_heater_setpoint_2)
+        self.btn_heater_setpoint_1 = tk.Button(
+            self, text="Heater Setpoint 1", fg="black",
+            command=self.toggle_heater_setpoint_1
+        )
+        self.btn_heater_setpoint_2 = tk.Button(
+            self, text="Heater Setpoint 2", fg="black",
+            command=self.toggle_heater_setpoint_2
+        )
 
         self.entry_heater_setpoint_1 = tk.Entry(self,width = 5)
         self.entry_heater_setpoint_2 = tk.Entry(self,width = 5)
