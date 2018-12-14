@@ -1,9 +1,8 @@
 import datetime
 import time
 
-from picamera import PiCamera
-
 import gpio
+
 
 class StageAxis(object):
     FORWARDS = 'f'
@@ -23,7 +22,9 @@ class StageAxis(object):
         elif direction == StageAxis.BACKWARDS:
             self.dir_pin.turn_off()
         else:
-            raise ValueError('Unknown StageAxis direction: {}'.format(direction))
+            raise ValueError(
+                'Unknown StageAxis direction: {}'.format(direction)
+            )
         if self.enable_pin is not None:
             self.enable_pin.turn_off()
         for step in range(steps):
@@ -33,6 +34,7 @@ class StageAxis(object):
             time.sleep(dt / 2)
         if self.enable_pin is not None:
             self.enable_pin.turn_on()
+
 
 class Camera(object):
     def __init__(
@@ -58,7 +60,7 @@ class Camera(object):
 
     def set_shutter_speed(self, shutter_speed):
         speed_int = int(float(shutter_speed) * 1000)
-        current_framerate = self.pi_camera.framerate
+        # current_framerate = self.pi_camera.framerate
         new_framerate = int(1000000 / float(speed_int))
         self.pi_camera.framerate = min(new_framerate, 30)
         self.pi_camera.shutter_speed = speed_int

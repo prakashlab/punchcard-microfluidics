@@ -6,7 +6,7 @@ import Adafruit_ADS1x15
 
 import gpio
 
-heater = gpio.DigitalPin(18)
+heater = gpio.DigitalPin(4)
 adc = Adafruit_ADS1x15.ADS1115()
 ref_voltage = gpio.AnalogPin(adc, 3)
 thermistor = gpio.Thermistor(

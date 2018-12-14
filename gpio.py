@@ -190,3 +190,51 @@ class Thermistor(object):
             return T_Celsius
         else:
             raise ValueError('Unknown temperature unit: {}'.format(unit))
+
+class CameraMultiplexer(object):
+    def __init__(self, selection_pin=4, enable_1_pin=7, enable_2_pin=10):
+        self.selection_pin = DigitalPin(selection_pin)
+        self.enable_1_pin = DigitalPin(enable_1_pin)
+        self.enable_2_pin = DigitalPin(enable_2_pin)
+        self.no_camera()
+
+    def camera_a(self):
+        self.selection_pin.turn_off()
+        self.enable_2_pin.turn_on()
+        self.enable_1_pin.turn_off()
+
+    def camera_b(self):
+        self.selection_pin.turn_on()
+        self.enable_2_pin.turn_on()
+        self.enable_1_pin.turn_off()
+
+    def camera_c(self):
+        self.selection_pin.turn_off()
+        self.enable_1_pin.turn_on()
+        self.enable_2_pin.turn_off()
+
+    def camera_d(self):
+        self.selection_pin.turn_on()
+        self.enable_1_pin.turn_on()
+        self.enable_2_pin.turn_off()
+
+    def no_camera(self):
+        self.enable_1_pin.turn_on()
+        self.enable_2_pin.turn_on()
+
+    def select_camera(self, index):
+        if index is None:
+            self.no_camera()
+        elif index == 0:
+            self.camera_a()
+        elif index == 1:
+            self.camera_b()
+        elif index == 2:
+            self.camera_c()
+        elif index == 3:
+            self.camera_d()
+        else:
+            raise ValueError(
+                'Camera multiplexer requires camera index '
+                'as either None or between 0 and 3!'
+            )
