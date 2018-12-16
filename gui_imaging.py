@@ -1,10 +1,12 @@
 import functools
 import tkinter as tk
 
+import gpio
+
 from picamera import PiCamera
 
-import gpio
-import imaging
+import picamera_mqtt
+from picamera_mqtt.imaging import imaging
 
 
 class Application(tk.Frame):
@@ -227,8 +229,6 @@ if __name__ == '__main__':
     ]
     camera = imaging.Camera(
         PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
-        # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
-        # PiCamera(resolution='3280x2464', sensor_mode=2, framerate=15),
         iso=60, exposure_mode='off', shutter_speed=500,
         awb_mode='off', awb_gains=(2, 1)
     )

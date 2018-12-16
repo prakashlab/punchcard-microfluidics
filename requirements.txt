@@ -1,4 +1,4 @@
 picamera
+picamera-mqtt
 RPi.GPIO
 Adafruit-ADS1x15
-Adafruit-MotorHAT

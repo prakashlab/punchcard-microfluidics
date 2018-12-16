@@ -1,0 +1,45 @@
+{
+  "broker": {
+    "hostname": "localhost",
+    "port": 18763,
+    "username": "btuqoevo",
+    "password": "L4ZNz-GgIyVF",
+    "use_tls": false,
+    "ca_certs": "/etc/ssl/certs/ca-certificates.crt",
+    "client_id": "",
+    "clean_session": true
+  },
+  "host": {
+    "client_name": "host",
+    "target_names": ["camera_1", "camera_2", "camera_3"]
+  },
+  "targets": {
+    "camera_1": {
+      "roi_zoom": 1.0,
+      "shutter_speed": 200.0,
+      "iso": 60,
+      "resolution_width": 1640,
+      "resolution_height": 1232,
+      "awb_gain_red": 2.0,
+      "awb_gain_blue": 1.0
+    },
+    "camera_2": {
+      "roi_zoom": 1.0,
+      "shutter_speed": 500.0,
+      "iso": 60,
+      "resolution_width": 1640,
+      "resolution_height": 1232,
+      "awb_gain_red": 2.0,
+      "awb_gain_blue": 1.0
+    },
+    "camera_3": {
+      "roi_zoom": 1.0,
+      "shutter_speed": 500.0,
+      "iso": 60,
+      "resolution_width": 1640,
+      "resolution_height": 1232,
+      "awb_gain_red": 2.0,
+      "awb_gain_blue": 1.0
+    }
+  }
+} 
