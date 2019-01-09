@@ -106,3 +106,6 @@ venv.bak/
 # Vim swapfiles
 *.swp
 *.swo
+
+# Output files
+*.csv
