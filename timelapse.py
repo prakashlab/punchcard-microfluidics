@@ -1,14 +1,12 @@
 import argparse
 import asyncio
+import os
 import time
 
 from picamera import PiCamera
 
 import picamera_mqtt
-from picamera_mqtt import data_path
-from picamera_mqtt.deploy import (
-    client_config_plain_name, client_configs_path
-)
+from picamera_mqtt.deploy import client_config_plain_name
 from picamera_mqtt.imaging import imaging
 from picamera_mqtt.imaging.mqtt_client_host import Host, topics
 from picamera_mqtt.tools import timelapse_host
@@ -18,6 +16,10 @@ from picamera_mqtt.util.async import (
 )
 
 import gpio
+
+
+root_path = os.path.dirname(os.path.abspath(__file__))
+
 
 class IlluminatedTimelapseHost(timelapse_host.TimelapseHost):
     def __init__(self, *args, **kwargs):
@@ -75,6 +77,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Acquire illuminated timelapse series.'
     )
+    client_configs_path = os.path.join(root_path, 'config')
     config.add_config_arguments(
         parser, client_configs_path, client_config_plain_name
     )
@@ -86,6 +89,7 @@ if __name__ == '__main__':
         '--number', '-n', type=int, default=5,
         help='Number of images to acquire. Default: 5'
     )
+    data_path = os.path.join(root_path, 'output')
     parser.add_argument(
         '--output_dir', '-o', type=str, default=data_path,
         help=(
