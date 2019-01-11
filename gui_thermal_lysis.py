@@ -5,14 +5,15 @@ from datetime import datetime
 import gpio
 import thermal
 
-heater = gpio.DigitalPin(4)
 adc = gpio.ADC()
 ref_voltage = gpio.AnalogPin(adc, 3)
+fan = gpio.DigitalPin(4)
+fan.turn_on()
 heater_controller = thermal.HeaterController(
     thermal.InfiniteGainControl(
         setpoint_reached_epsilon=0.5  # deg C
     ),
-    gpio.DigitalPin(4),
+    gpio.DigitalPin(18),
     thermal.Thermistor(
         ref_voltage, gpio.AnalogPin(adc, 0),
         bias_resistance=1960,  # Ohm
@@ -33,7 +34,6 @@ class Application(tk.Frame):
         self.grid()
         self.create_widgets()
 
-        self.heater = heater
         self.heater_setpoint_1 = gpio.BinaryState()
         self.heater_setpoint_1.after_state_change = \
             self.on_heater_setpoint_1_state_change
@@ -202,4 +202,5 @@ app = Application(master=root)
 app.mainloop()
 
 # exit routine
+fan.turn_off()
 gpio.cleanup()
