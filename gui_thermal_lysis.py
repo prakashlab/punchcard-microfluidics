@@ -1,6 +1,4 @@
 import tkinter as tk
-import time
-from datetime import datetime
 
 import gpio
 import thermal
@@ -9,7 +7,7 @@ adc = gpio.ADC()
 ref_voltage = gpio.AnalogPin(adc, 3)
 fan = gpio.DigitalPin(4)
 fan.turn_on()
-heater_controller = thermal.HeaterController(
+thermal_lysis_controller = thermal.HeaterController(
     thermal.InfiniteGainControl(
         setpoint_reached_epsilon=0.5  # deg C
     ),
@@ -20,11 +18,17 @@ heater_controller = thermal.HeaterController(
         A=0.0010349722285233954,
         B=0.00022717987892035313,
         C=3.008424040777896e-07
+    ),
+    file_reporter=thermal.ThermalControllerReporter(
+        interval=0.5,  # s
+        file_prefix='gui_thermal_lysis_'
+    ),
+    print_reporter=thermal.ThermalControllerPrinter(
+        interval=15  # s
     )
 )
-temperature_report_interval = 0.5  # s
-temperature_print_interval = int(15 / 0.5)  # number of reports between prints
 control_loop_interval = 50  # ms
+invalid_temperature_resample_interval = 10  # ms
 
 
 class Application(tk.Frame):
@@ -40,23 +44,10 @@ class Application(tk.Frame):
         self.heater_setpoint_2 = gpio.BinaryState()
         self.heater_setpoint_2.after_state_change = \
             self.on_heater_setpoint_2_state_change
-        self.last_temperature = None
-        self.first_temperature_time = None
-        self.last_temperature_index = None
-        self.reporting_temperature = False
-        self.report_file = None
 
         self.updater()
 
     # define methods #
-    def reset_temperature_reporting(self):
-        self.last_temperature_index = None
-        self.first_temperature_time = None
-        self.reporting_temperature = True
-        heater_controller.control.reset_setpoint_reached()
-        if self.report_file is not None:
-            self.report_file.close()
-            self.report_file = None
 
     def on_heater_setpoint_1_state_change(self, state):
         if state:
@@ -66,7 +57,7 @@ class Application(tk.Frame):
             self.btn_heater_setpoint_1.config(relief='raised')
             self.btn_heater_setpoint_1.config(fg='black')
             print('Heater setpoint 1 disabled!')
-        self.reset_temperature_reporting()
+        thermal_lysis_controller.reset()
 
     def on_heater_setpoint_2_state_change(self, state):
         if state:
@@ -76,7 +67,7 @@ class Application(tk.Frame):
             self.btn_heater_setpoint_2.config(relief='raised')
             self.btn_heater_setpoint_2.config(fg='black')
             print('Heater setpoint 2 disabled!')
-        self.reset_temperature_reporting()
+        thermal_lysis_controller.reset()
 
     def toggle_heater_setpoint_1(self):
         self.heater_setpoint_1.toggle()
@@ -96,73 +87,34 @@ class Application(tk.Frame):
         elif self.heater_setpoint_2.state:
             setpoint = float(self.entry_heater_setpoint_2.get())
             btn_heater_setpoint = self.btn_heater_setpoint_2
-        heater_controller.control.set_setpoint(setpoint)
+        thermal_lysis_controller.control.set_setpoint(setpoint)
 
-        (temperature, control_effort) = heater_controller.update()
-        if temperature is not None:
-            self.entry_heater_temp.config(text=format(temperature, '.2f'))
-
-            if setpoint is not None:
-                btn_heater_setpoint.config(
-                    fg='red' if control_effort else 'blue'
-                )
-                self.report_temperature(
-                    setpoint, temperature, float(control_effort)
-                )
-            else:
-                self.btn_heater_setpoint_1.config(fg='black')
-                self.btn_heater_setpoint_2.config(fg='black')
-
+        if setpoint is None:
+            thermal_lysis_controller.file_reporter.file_suffix = \
+                '_uncontrolled'
+            thermal_lysis_controller.file_reporter.interval = 15
         else:
+            thermal_lysis_controller.file_reporter.interval = 0.5
+            thermal_lysis_controller.file_reporter.file_suffix = \
+                '_setpoint{:.1f}'.format(setpoint)
+
+        (
+            temperature, (heater_control_effort,)
+        ) = thermal_lysis_controller.update()
+        if temperature is None:
             self.entry_heater_temp.config(text='-')
-
-        self.after(control_loop_interval, self.updater)
-
-    def report_temperature(self, heater_setpoint, temperature, control_effort):
-        if not self.reporting_temperature:
+            self.after(invalid_temperature_resample_interval, self.updater)
             return
 
-        if heater_setpoint is None:
-            error = None
+        self.entry_heater_temp.config(text=format(temperature, '.2f'))
+        if setpoint is None:
+            self.btn_heater_setpoint_1.config(fg='black')
+            self.btn_heater_setpoint_2.config(fg='black')
         else:
-            error = heater_setpoint - temperature
-
-        current_time = time.time()
-        if (
-            self.last_temperature_index is None
-            or (
-                current_time - self.first_temperature_time
-                - self.last_temperature_index * temperature_report_interval
-            ) > 0
-        ):
-            if self.first_temperature_time is None:
-                self.first_temperature_time = current_time
-                self.last_temperature_index = 0
-                header_string = (
-                    'Time (s),'
-                    'Temperature (deg C),Setpoint (deg C),Error (deg C),'
-                    'Heater PWM Duty,Setpoint Reached'
-                )
-                starting_timestamp = (
-                    datetime.fromtimestamp(self.first_temperature_time)
-                    .isoformat(sep='_')
-                )
-                filename = 'guipunchcard_{}_setpoint{:.1f}.csv'.format(
-                    starting_timestamp, heater_setpoint
-                )
-                print('Logging to {}...'.format(filename))
-                print(header_string)
-                self.report_file = open(filename, 'w')
-                print(header_string, file=self.report_file)
-            report_string = '{:.2f},{:.1f},{:.1f},{:.1f},{},{}'.format(
-                current_time - self.first_temperature_time,
-                temperature, heater_setpoint, error,
-                control_effort, heater_controller.control.setpoint_reached
+            btn_heater_setpoint.config(
+                fg='red' if heater_control_effort else 'blue'
             )
-            if self.last_temperature_index % temperature_print_interval == 0:
-                print(report_string)
-            print(report_string, file=self.report_file)
-            self.last_temperature_index += 1
+        self.after(control_loop_interval, self.updater)
 
     # create widgets #
     def create_widgets(self):

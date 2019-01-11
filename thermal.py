@@ -1,3 +1,7 @@
+import sys
+import time
+from datetime import datetime
+
 import numpy as np
 
 
@@ -107,8 +111,12 @@ class Control(object):
         return None
 
     def update(self, measurement):
-        if self.compute_setpoint_reached(measurement):
-            self.setpoint_reached = True
+        if self.setpoint is None:
+            self.setpoint_reached = None
+        else:
+            setpoint_reached = self.compute_setpoint_reached(measurement)
+            if setpoint_reached:
+                self.setpoint_reached = True
 
 
 class InfiniteGainControl(Control):
@@ -136,12 +144,158 @@ class InfiniteGainControl(Control):
             return error > 0
 
 
+# Lysis Heater Thermal Module
+
+class ThermalControllerReporter(object):
+    def __init__(
+        self, interval=0.5, control_efforts=('Thermal Control Effort',),
+        file_prefix='', file_suffix=''
+    ):
+        self.interval = interval
+        self.start_time = None
+        self.last_report_time = None
+        self.enabled = False
+        self.control_efforts = control_efforts
+        self.file_prefix = file_prefix
+        self.file_suffix = file_suffix
+        self.file = None
+
+    def enable(self):
+        self.enabled = True
+
+    def disable(self):
+        self.enabled = False
+
+    def reset(self):
+        self.start_time = None
+        self.last_report_time = None
+        self.close_report()
+        self.enable()
+
+    def close_report(self):
+        if self.file is not None:
+            self.file.close()
+            self.file = None
+
+    def update(
+        self, temperature, setpoint=None, setpoint_reached=None,
+        control_efforts=[]
+    ):
+        if not self.enabled or temperature is None:
+            return
+
+        current_time = time.time()
+        if self.last_report_time is None:  # First report received!
+            self.start_time = current_time
+            self.last_report_time = current_time
+            self.open_report()
+            self.report_header()
+            next_report_time = current_time
+        else:
+            next_report_time = self.last_report_time + self.interval
+        if current_time >= next_report_time:
+            self.report(
+                current_time, temperature,
+                setpoint=setpoint, setpoint_reached=setpoint_reached,
+                control_efforts=control_efforts
+            )
+
+    def open_report(self):
+        filename = self.generate_filename()
+        print('Logging to {}...'.format(filename))
+        self.file = open(filename, 'w')
+
+    def report_header(self):
+        header_string = (
+            'Time (s),'
+            'Temperature (deg C),Setpoint (deg C),Error (deg C),'
+            '{}Setpoint Reached'
+        ).format(
+            '{},'.format(','.join(self.control_efforts))
+            if self.control_efforts else ''
+        )
+        print(header_string, file=self.file)
+        self.file.flush()
+
+    def generate_timestamp(self, time):
+        return datetime.fromtimestamp(time).isoformat(sep='_')
+
+    def generate_filename(self):
+        return '{}{}{}.csv'.format(
+            self.file_prefix,
+            self.generate_timestamp(self.start_time),
+            self.file_suffix
+        )
+
+    def report(
+        self, report_time, temperature, setpoint=None, setpoint_reached=None,
+        control_efforts=[]
+    ):
+        error = None
+        if setpoint is not None:
+            error = setpoint - temperature
+
+        control_efforts_string = self.format_control_efforts(control_efforts)
+        report_string = '{:.2f},{:.1f},{},{},{}{}'.format(
+            report_time - self.start_time,
+            temperature,
+            '{:.1f}'.format(setpoint) if setpoint is not None else '',
+            '{:.1f}'.format(error) if error is not None else '',
+            '{},'.format(control_efforts_string)
+            if control_efforts_string else '',
+            setpoint_reached if setpoint_reached is not None else ''
+        )
+
+        print(report_string, file=self.file)
+        self.file.flush()
+
+        self.last_report_time = report_time
+
+    def format_control_efforts(self, control_efforts):
+        formatted_control_efforts = [
+            '{:.2f}'.format(float(effort)) if effort is not None else ''
+            for effort in control_efforts
+        ]
+        return ','.join(formatted_control_efforts)
+
+
+class ThermalControllerPrinter(ThermalControllerReporter):
+    def __init__(
+        self, interval=15, control_efforts=('Thermal Control Effort',),
+    ):
+        super().__init__(interval=interval, control_efforts=control_efforts)
+
+    def close_report(self):
+        pass
+
+    def open_report(self):
+        self.file = sys.stdout
+
+
 class HeaterController(object):
-    def __init__(self, control, heater, thermistor):
+    def __init__(
+        self, control, heater, thermistor,
+        file_reporter=None, print_reporter=None
+    ):
         self.control = control
         self.heater = heater
         self.thermistor = thermistor
+
         self.last_temperature = None
+        self.last_control_effort = None
+
+        self.file_reporter = file_reporter
+        self.print_reporter = print_reporter
+        self.reporters = [self.file_reporter, self.print_reporter]
+        for reporter in self.reporters:
+            if reporter is not None:
+                reporter.control_efforts = ('Heater PWM Duty',)
+
+    def reset(self):
+        for reporter in self.reporters:
+            if reporter is not None:
+                reporter.reset()
+        self.control.reset_setpoint_reached()
 
     def update(self):
         temperature = self.thermistor.read()
@@ -150,10 +304,17 @@ class HeaterController(object):
 
         self.last_temperature = temperature
         self.control.update(temperature)
-        control_effort = self.control.compute_control_effort(
-            temperature
-        )
+        control_effort = self.control.compute_control_effort(temperature)
         if self.control.setpoint is not None:
+            self.last_control_effort = control_effort
             self.heater.set_state(control_effort)
 
-        return (temperature, control_effort)
+        for reporter in self.reporters:
+            if reporter is not None:
+                reporter.update(
+                    temperature, setpoint=self.control.setpoint,
+                    setpoint_reached=self.control.setpoint_reached,
+                    control_efforts=(control_effort,)
+                )
+
+        return (temperature, (control_effort,))
