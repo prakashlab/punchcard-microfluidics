@@ -162,11 +162,13 @@ class ProportionalControl(Control):
         return max(0.0, min(1.0, gain * error))
 
 
-# Lysis Heater Thermal Module
+# Control
 
-class ThermalControllerReporter(object):
+class ControllerReporter(object):
     def __init__(
-        self, interval=0.5, control_efforts=('Thermal Control Effort',),
+        self, interval=0.5,
+        process_variable='Temperature', process_variable_units='deg C',
+        control_efforts=('Thermal Control Effort',),
         file_prefix='', file_suffix=''
     ):
         self.interval = interval
@@ -196,10 +198,10 @@ class ThermalControllerReporter(object):
             self.file = None
 
     def update(
-        self, temperature, setpoint=None, setpoint_reached=None,
+        self, process_variable, setpoint=None, setpoint_reached=None,
         control_efforts=[]
     ):
-        if not self.enabled or temperature is None:
+        if not self.enabled or process_variable is None:
             return
 
         current_time = time.time()
@@ -213,7 +215,7 @@ class ThermalControllerReporter(object):
         )
         if current_time >= next_report_time:
             self.report(
-                current_time, temperature,
+                current_time, process_variable,
                 setpoint=setpoint, setpoint_reached=setpoint_reached,
                 control_efforts=control_efforts
             )
@@ -227,9 +229,11 @@ class ThermalControllerReporter(object):
     def report_header(self):
         header_string = (
             'Time (s),'
-            'Temperature (deg C),Setpoint (deg C),Error (deg C),'
+            '{} ({}),Setpoint ({}),Error ({}),'
             '{}Setpoint Reached'
         ).format(
+            self.process_variable, self.process_variable_units,
+            self.process_variable_units, self.process_variable_units,
             '{},'.format(','.join(self.control_efforts))
             if self.control_efforts else ''
         )
@@ -247,17 +251,17 @@ class ThermalControllerReporter(object):
         )
 
     def report(
-        self, report_time, temperature, setpoint=None, setpoint_reached=None,
-        control_efforts=[]
+        self, report_time, process_variable,
+        setpoint=None, setpoint_reached=None, control_efforts=[]
     ):
         error = None
         if setpoint is not None:
-            error = setpoint - temperature
+            error = setpoint - process_variable
 
         control_efforts_string = self.format_control_efforts(control_efforts)
         report_string = '{:.2f},{:.1f},{},{},{}{}'.format(
             report_time - self.start_time,
-            temperature,
+            process_variable,
             '{:.1f}'.format(setpoint) if setpoint is not None else '',
             '{:.1f}'.format(error) if error is not None else '',
             '{},'.format(control_efforts_string)
@@ -276,7 +280,7 @@ class ThermalControllerReporter(object):
         return ','.join(formatted_control_efforts)
 
 
-class ThermalControllerPrinter(ThermalControllerReporter):
+class ControllerPrinter(ControllerReporter):
     def __init__(
         self, interval=15, control_efforts=('Thermal Control Effort',),
     ):
@@ -289,49 +293,96 @@ class ThermalControllerPrinter(ThermalControllerReporter):
         self.file = sys.stdout
 
 
-class HeaterController(object):
-    def __init__(
-        self, control, heater, thermistor,
-        file_reporter=None, print_reporter=None
-    ):
-        self.control = control
-        self.heater = heater
-        self.thermistor = thermistor
+class Controller(object):
+    def __init__(self, controls, outputs, process_variable, reporters=[]):
+        self.controls = [control for control in controls]
+        self.outputs = [output for output in outputs]
+        self.process_variable = process_variable
+        self.reporters = [reporter for reporter in reporters]
 
-        self.last_temperature = None
-        self.last_control_effort = None
-
-        self.file_reporter = file_reporter
-        self.print_reporter = print_reporter
-        self.reporters = [self.file_reporter, self.print_reporter]
         for reporter in self.reporters:
             if reporter is not None:
-                reporter.control_efforts = ('Heater PWM Duty',)
+                reporter.control_efforts = self.output_effort_names
+
+    @property
+    def output_effort_names(self):
+        return (
+            'Output {} Effort'.format(i) for (i, _) in enumerate(self.outputs)
+        )
+
+    def set_setpoint(self, setpoint):
+        for control in self.controls:
+            control.set_setpoint(setpoint)
 
     def reset(self):
+        self.reset_reporters()
+        for control in self.controls:
+            control.reset_setpoint_reached()
+
+    def reset_reporters(self):
         for reporter in self.reporters:
             if reporter is not None:
                 reporter.reset()
-        self.control.reset_setpoint_reached()
-        self.last_control_effort = 0
 
     def update(self):
-        temperature = self.thermistor.read()
-        if temperature is None:
-            return (None, None)
+        process_variable = self.process_variable.read()
+        if process_variable is None:
+            return (None, (None,))
 
-        self.last_temperature = temperature
-        self.control.update(temperature)
-        control_effort = self.control.compute_control_effort(temperature)
-        self.last_control_effort = control_effort
-        self.heater.set_state(control_effort)
+        control_efforts = self.compute_control_efforts(process_variable)
+        for (output, control_effort) in zip(self.outputs, control_efforts):
+            output.set_state(control_effort)
 
+        self.report(process_variable, control_efforts)
+        return (process_variable, control_efforts)
+
+    def compute_control_efforts(self, process_variable):
+        for control in self.controls:
+            control.update(process_variable)
+        return [
+            control.compute_control_effort(process_variable)
+            for control in self.controls
+        ]
+
+    def report(self, process_variable, control_efforts):
         for reporter in self.reporters:
             if reporter is not None:
                 reporter.update(
-                    temperature, setpoint=self.control.setpoint,
-                    setpoint_reached=self.control.setpoint_reached,
-                    control_efforts=(control_effort,)
+                    process_variable, setpoint=self.controls[0].setpoint,
+                    setpoint_reached=self.controls[0].setpoint_reached,
+                    control_efforts=control_efforts
                 )
 
-        return (temperature, (control_effort,))
+
+# Lysis Heater Thermal Module Controllers
+
+class HeaterController(Controller):
+    def __init__(
+        self, heater_control, heater, process_variable,
+        file_reporter=None, print_reporter=None
+    ):
+        super().__init__(
+            [heater_control], [heater], process_variable,
+            [self.file_reporter, self.print_reporter]
+        )
+        self.heater = heater
+        self.heater_control = heater_control
+        self.file_reporter = file_reporter
+        self.print_reporter = print_reporter
+
+    @property
+    def output_effort_names(self):
+        return ('Heater PWM Duty',)
+
+
+class HeaterFanController(HeaterController):
+    def __init__(self, fan_control, fan, *args, **kwargs):
+        self.fan = fan
+        self.fan_control = fan_control
+        super().__init__(*args, **kwargs)
+        self.controls = [self.heater_control, self.fan_control]
+        self.outputs = [self.heater, self.fan]
+
+    @property
+    def output_effort_names(self):
+        return ('Heater PWM Duty', 'Fan State')

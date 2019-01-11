@@ -20,11 +20,11 @@ thermal_lysis_controller = thermal.HeaterController(
         B=0.00022717987892035313,
         C=3.008424040777896e-07
     ),
-    file_reporter=thermal.ThermalControllerReporter(
+    file_reporter=thermal.ControllerReporter(
         interval=0.5,  # s
         file_prefix='gui_thermal_lysis_'
     ),
-    print_reporter=thermal.ThermalControllerPrinter(
+    print_reporter=thermal.ControllerPrinter(
         interval=15  # s
     )
 )
@@ -88,7 +88,7 @@ class Application(tk.Frame):
         elif self.heater_setpoint_2.state:
             setpoint = float(self.entry_heater_setpoint_2.get())
             btn_heater_setpoint = self.btn_heater_setpoint_2
-        thermal_lysis_controller.control.set_setpoint(setpoint)
+        thermal_lysis_controller.set_setpoint(setpoint)
 
         if setpoint is None:
             thermal_lysis_controller.file_reporter.file_suffix = \
@@ -99,9 +99,8 @@ class Application(tk.Frame):
             thermal_lysis_controller.file_reporter.file_suffix = \
                 '_setpoint{:.1f}'.format(setpoint)
 
-        (
-            temperature, (heater_control_effort,)
-        ) = thermal_lysis_controller.update()
+        (temperature, control_efforts) = thermal_lysis_controller.update()
+        heater_control_effort = control_efforts[0]
         if temperature is None:
             self.entry_heater_temp.config(text='-')
             self.after(invalid_temperature_resample_interval, self.updater)
