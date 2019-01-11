@@ -76,6 +76,7 @@ class PWMPin(State):
         GPIO.setmode(GPIO.BCM)
         self.pin = pin
         self.frequency = frequency
+        GPIO.setup(pin, GPIO.OUT)
         self.pwm = GPIO.PWM(pin, frequency)
         self.pwm.start(self.state)
 
@@ -85,6 +86,9 @@ class PWMPin(State):
     def set_state(self, state):
         self.pwm.ChangeDutyCycle(100.0 * state)
         super().set_state(state)
+
+    def turn_off(self):
+        self.set_state(0)
 
 
 class AnalogPin(object):

@@ -171,7 +171,7 @@ class ThermalControllerReporter(object):
     ):
         self.interval = interval
         self.start_time = None
-        self.last_report_time = None
+        self.next_report_index = None
         self.enabled = False
         self.control_efforts = control_efforts
         self.file_prefix = file_prefix
@@ -186,7 +186,7 @@ class ThermalControllerReporter(object):
 
     def reset(self):
         self.start_time = None
-        self.last_report_time = None
+        self.next_report_index = None
         self.close_report()
         self.enable()
 
@@ -203,20 +203,21 @@ class ThermalControllerReporter(object):
             return
 
         current_time = time.time()
-        if self.last_report_time is None:  # First report received!
+        if self.next_report_index is None:  # First report received!
             self.start_time = current_time
-            self.last_report_time = current_time
+            self.next_report_index = 0
             self.open_report()
             self.report_header()
-            next_report_time = current_time
-        else:
-            next_report_time = self.last_report_time + self.interval
+        next_report_time = (
+            self.next_report_index * self.interval + self.start_time
+        )
         if current_time >= next_report_time:
             self.report(
                 current_time, temperature,
                 setpoint=setpoint, setpoint_reached=setpoint_reached,
                 control_efforts=control_efforts
             )
+            self.next_report_index += 1
 
     def open_report(self):
         filename = self.generate_filename()
@@ -267,8 +268,6 @@ class ThermalControllerReporter(object):
         print(report_string, file=self.file)
         self.file.flush()
 
-        self.last_report_time = report_time
-
     def format_control_efforts(self, control_efforts):
         formatted_control_efforts = [
             '{:.2f}'.format(float(effort)) if effort is not None else ''
@@ -314,6 +313,7 @@ class HeaterController(object):
             if reporter is not None:
                 reporter.reset()
         self.control.reset_setpoint_reached()
+        self.last_control_effort = 0
 
     def update(self):
         temperature = self.thermistor.read()
@@ -323,9 +323,8 @@ class HeaterController(object):
         self.last_temperature = temperature
         self.control.update(temperature)
         control_effort = self.control.compute_control_effort(temperature)
-        if self.control.setpoint is not None:
-            self.last_control_effort = control_effort
-            self.heater.set_state(control_effort)
+        self.last_control_effort = control_effort
+        self.heater.set_state(control_effort)
 
         for reporter in self.reporters:
             if reporter is not None:

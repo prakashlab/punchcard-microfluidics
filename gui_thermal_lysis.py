@@ -5,11 +5,11 @@ import thermal
 
 adc = gpio.ADC()
 ref_voltage = gpio.AnalogPin(adc, 3)
-fan = gpio.DigitalPin(4)
-fan.turn_on()
+# fan = gpio.DigitalPin(4)
+# fan.turn_on()
 thermal_lysis_controller = thermal.HeaterController(
     thermal.ProportionalControl(
-        gain=1.0 / 2.5,  # amount of duty cycle per deg C of error
+        gain=1.0 / 10.0,  # amount of duty cycle per deg C of error
         setpoint_reached_epsilon=0.5  # deg C
     ),
     gpio.PWMPin(18),
@@ -155,5 +155,5 @@ app = Application(master=root)
 app.mainloop()
 
 # exit routine
-fan.turn_off()
+# fan.turn_off()
 gpio.cleanup()

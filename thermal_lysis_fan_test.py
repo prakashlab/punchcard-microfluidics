@@ -1,7 +1,7 @@
 import gpio
 
 heater = gpio.DigitalPin(4)
-print('Running heater...')
+print('Running fans...')
 heater.turn_on()
 input('Press enter to quit: ')
 
