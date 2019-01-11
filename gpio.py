@@ -1,9 +1,6 @@
-import datetime
-import time
-
-import numpy as np
-
 import RPi.GPIO as GPIO
+import Adafruit_ADS1x15
+
 
 def cleanup():
     GPIO.cleanup()
@@ -11,9 +8,9 @@ def cleanup():
 
 # State
 
-class BinaryState(object):
-    def __init__(self):
-        self.state = None
+class State(object):
+    def __init__(self, initial_state=None):
+        self.state = initial_state
         self.after_state_change = None
 
     def set_state(self, state):
@@ -21,6 +18,8 @@ class BinaryState(object):
         if callable(self.after_state_change):
             self.after_state_change(self.state)
 
+
+class BinaryState(State):
     def turn_on(self):
         self.set_state(True)
 
@@ -68,6 +67,25 @@ gain_voltage_maxes = {
     16: 0.256
 }
 
+ADC = Adafruit_ADS1x15.ADS1115
+
+
+class PWMPin(State):
+    def __init__(self, pin=18, frequency=1000, initial_state=0):
+        super().__init__(initial_state=initial_state)
+        GPIO.setmode(GPIO.BCM)
+        self.pin = pin
+        self.frequency = frequency
+        self.pwm = GPIO.PWM(pin, frequency)
+        self.pwm.start(self.state)
+
+    def set_frequency(self, frequency):
+        self.pwm.ChangeFrequency(frequency)
+
+    def set_state(self, state):
+        self.pwm.ChangeDutyCycle(state)
+        super().set_state(state)
+
 
 class AnalogPin(object):
     def __init__(self, adc, adc_pin, gain=1, adc_max=32767):
@@ -93,16 +111,19 @@ class AnalogPin(object):
         self.last_reading = reading
         return reading
 
+
 class DifferentialAnalogPin(AnalogPin):
     def __init__(self, *args, ref_pin, **kwargs):
         super().__init__(*args, **kwargs)
         self.ref_pin = ref_pin
         try:
-            self.adc_pin_differential = analog_pin_differentials[(adc_pin, ref_pin)]
+            self.adc_pin_differential = analog_pin_differentials[(
+                self.adc_pin, self.ref_pin
+            )]
         except KeyError:
             raise ValueError(
                 'Cannot define a differential analog pin reading pin {} '
-                'and referencing pin {}!'.format(adc_pin, ref_pin)
+                'and referencing pin {}!'.format(self.adc_pin, self.ref_pin)
             )
 
     def read_raw(self):
@@ -111,6 +132,7 @@ class DifferentialAnalogPin(AnalogPin):
         )
         self.last_raw_reading = raw_reading
         return raw_reading
+
 
 # Components
 
@@ -130,111 +152,3 @@ class HBridgeDevice(object):
     def turn_off(self):
         self.digital_pin_1.turn_off()
         self.digital_pin_2.turn_off()
-
-class Thermistor(object):
-    def __init__(
-        self, reference_pin, thermistor_pin, bias_resistance=1962,
-        A=1.125308852122e-03, B=2.34711863267e-04, C=8.5663516e-08
-    ):
-        self.reference_pin = reference_pin
-        self.thermistor_pin = thermistor_pin
-        self.reading = None
-        self.referenced_reading = None
-        self.bias_resistance = bias_resistance
-        self.A = A
-        self.B = B
-        self.C = C
-
-    def calibrate_steinhart_hart(self, temperature_resistance_pairs, unit='C'):
-        (temperatures, resistances) = zip(*temperature_resistance_pairs)
-
-        T = np.array(temperatures)
-        if unit == 'K':
-            pass
-        elif unit == 'C':
-            T = T + 273.15
-        else:
-            raise ValueError('Unknown temperature unit: {}'.format(unit))
-        b = 1 / T
-
-        R = np.expand_dims(np.array(resistances), axis=1)
-        A = np.hstack((np.ones_like(R), np.log(R), np.power(np.log(R), 3)))
-        (coeffs, residuals, rank, singular_values) = np.linalg.lstsq(A, b)
-        (self.A, self.B, self.C) = coeffs
-        return (coeffs, residuals)
-
-    def read_voltage(self):
-        ref = self.reference_pin.read_raw()
-        reading = self.thermistor_pin.read_raw()
-        self.reading = reading
-        self.referenced_reading = ref - reading
-        return (self.reading, self.referenced_reading)
-
-    def read_resistance(self):
-        (reading, referenced_reading) = self.read_voltage()
-        if referenced_reading <= 0:
-            return None
-
-        return reading * self.bias_resistance / referenced_reading
-
-    def read(self, unit='C'):
-        R = self.read_resistance()
-        if R is None:
-            return None
-
-        T_Kelvin = 1 / (self.A + self.B * np.log(R) + self.C * np.power(np.log(R), 3))
-        if unit == 'K':
-            return T_Kelvin
-        elif unit == 'C':
-            T_Celsius = T_Kelvin - 273.15
-            return T_Celsius
-        else:
-            raise ValueError('Unknown temperature unit: {}'.format(unit))
-
-class CameraMultiplexer(object):
-    def __init__(self, selection_pin=4, enable_1_pin=7, enable_2_pin=10):
-        self.selection_pin = DigitalPin(selection_pin)
-        self.enable_1_pin = DigitalPin(enable_1_pin)
-        self.enable_2_pin = DigitalPin(enable_2_pin)
-        self.no_camera()
-
-    def camera_a(self):
-        self.selection_pin.turn_off()
-        self.enable_2_pin.turn_on()
-        self.enable_1_pin.turn_off()
-
-    def camera_b(self):
-        self.selection_pin.turn_on()
-        self.enable_2_pin.turn_on()
-        self.enable_1_pin.turn_off()
-
-    def camera_c(self):
-        self.selection_pin.turn_off()
-        self.enable_1_pin.turn_on()
-        self.enable_2_pin.turn_off()
-
-    def camera_d(self):
-        self.selection_pin.turn_on()
-        self.enable_1_pin.turn_on()
-        self.enable_2_pin.turn_off()
-
-    def no_camera(self):
-        self.enable_1_pin.turn_on()
-        self.enable_2_pin.turn_on()
-
-    def select_camera(self, index):
-        if index is None:
-            self.no_camera()
-        elif index == 0:
-            self.camera_a()
-        elif index == 1:
-            self.camera_b()
-        elif index == 2:
-            self.camera_c()
-        elif index == 3:
-            self.camera_d()
-        else:
-            raise ValueError(
-                'Camera multiplexer requires camera index '
-                'as either None or between 0 and 3!'
-            )

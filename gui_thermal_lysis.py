@@ -2,24 +2,28 @@ import tkinter as tk
 import time
 from datetime import datetime
 
-import Adafruit_ADS1x15
-
 import gpio
+import thermal
 
 heater = gpio.DigitalPin(4)
-adc = Adafruit_ADS1x15.ADS1115()
+adc = gpio.ADC()
 ref_voltage = gpio.AnalogPin(adc, 3)
-thermistor = gpio.Thermistor(
-    ref_voltage, gpio.AnalogPin(adc, 0),
-    bias_resistance=1960,
-    A=0.0010349722285233954,
-    B=0.00022717987892035313,
-    C=3.008424040777896e-07
+heater_controller = thermal.HeaterController(
+    thermal.InfiniteGainControl(
+        setpoint_reached_epsilon=0.5  # deg C
+    ),
+    gpio.DigitalPin(4),
+    thermal.Thermistor(
+        ref_voltage, gpio.AnalogPin(adc, 0),
+        bias_resistance=1960,  # Ohm
+        A=0.0010349722285233954,
+        B=0.00022717987892035313,
+        C=3.008424040777896e-07
+    )
 )
 temperature_report_interval = 0.5  # s
 temperature_print_interval = int(15 / 0.5)  # number of reports between prints
 control_loop_interval = 50  # ms
-setpoint_reached_epsilon = 0.5  # deg C
 
 
 class Application(tk.Frame):
@@ -40,7 +44,6 @@ class Application(tk.Frame):
         self.first_temperature_time = None
         self.last_temperature_index = None
         self.reporting_temperature = False
-        self.setpoint_reached = False
         self.report_file = None
 
         self.updater()
@@ -50,7 +53,7 @@ class Application(tk.Frame):
         self.last_temperature_index = None
         self.first_temperature_time = None
         self.reporting_temperature = True
-        self.setpoint_reached = False
+        heater_controller.control.reset_setpoint_reached()
         if self.report_file is not None:
             self.report_file.close()
             self.report_file = None
@@ -93,32 +96,29 @@ class Application(tk.Frame):
         elif self.heater_setpoint_2.state:
             setpoint = float(self.entry_heater_setpoint_2.get())
             btn_heater_setpoint = self.btn_heater_setpoint_2
+        heater_controller.control.set_setpoint(setpoint)
 
-        temperature = thermistor.read()
+        (temperature, control_effort) = heater_controller.update()
         if temperature is not None:
             self.entry_heater_temp.config(text=format(temperature, '.2f'))
 
             if setpoint is not None:
-                if temperature < setpoint:
-                    btn_heater_setpoint.config(fg='red')
-                    heater.turn_on()
-                else:
-                    btn_heater_setpoint.config(fg='blue')
-                    heater.turn_off()
-                if abs(temperature - setpoint) < setpoint_reached_epsilon:
-                    self.setpoint_reached = True
-                self.report_temperature(setpoint, temperature)
+                btn_heater_setpoint.config(
+                    fg='red' if control_effort else 'blue'
+                )
+                self.report_temperature(
+                    setpoint, temperature, float(control_effort)
+                )
             else:
                 self.btn_heater_setpoint_1.config(fg='black')
                 self.btn_heater_setpoint_2.config(fg='black')
-                heater.turn_off()
 
         else:
             self.entry_heater_temp.config(text='-')
 
         self.after(control_loop_interval, self.updater)
 
-    def report_temperature(self, heater_setpoint, temperature):
+    def report_temperature(self, heater_setpoint, temperature, control_effort):
         if not self.reporting_temperature:
             return
 
@@ -157,7 +157,7 @@ class Application(tk.Frame):
             report_string = '{:.2f},{:.1f},{:.1f},{:.1f},{},{}'.format(
                 current_time - self.first_temperature_time,
                 temperature, heater_setpoint, error,
-                float(heater.state), self.setpoint_reached
+                control_effort, heater_controller.control.setpoint_reached
             )
             if self.last_temperature_index % temperature_print_interval == 0:
                 print(report_string)
