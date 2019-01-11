@@ -8,10 +8,11 @@ ref_voltage = gpio.AnalogPin(adc, 3)
 fan = gpio.DigitalPin(4)
 fan.turn_on()
 thermal_lysis_controller = thermal.HeaterController(
-    thermal.InfiniteGainControl(
+    thermal.ProportionalControl(
+        gain=1.0 / 2.5,  # amount of duty cycle per deg C of error
         setpoint_reached_epsilon=0.5  # deg C
     ),
-    gpio.DigitalPin(18),
+    gpio.PWMPin(18),
     thermal.Thermistor(
         ref_voltage, gpio.AnalogPin(adc, 0),
         bias_resistance=1960,  # Ohm

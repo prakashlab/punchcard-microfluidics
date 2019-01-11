@@ -70,14 +70,22 @@ class Thermistor(object):
             raise ValueError('Unknown temperature unit: {}'.format(unit))
 
 
-# Control
+# Feedback Control
 
 class Control(object):
-    def __init__(self, initial_setpoint=None, setpoint_reached_epsilon=0):
+    """Generic feedback control interface. Implement compute_control_effort.
+
+    Direction specifies whether control effort tends to increase or decrease
+    the controlled value.
+    """
+    def __init__(
+        self, initial_setpoint=None, setpoint_reached_epsilon=0, direction=True
+    ):
         self.setpoint = initial_setpoint
         self.after_setpoint_change = None
         self.setpoint_reached = False
         self.setpoint_reached_epsilon = setpoint_reached_epsilon
+        self.direction = direction
 
     def reset_setpoint_reached(self):
         self.setpoint_reached = False
@@ -95,7 +103,7 @@ class Control(object):
         if self.setpoint is None or measurement is None:
             return None
 
-        return measurement - self.setpoint
+        return self.setpoint - measurement
 
     def compute_setpoint_reached(self, measurement):
         error = self.compute_error(measurement)
@@ -123,14 +131,7 @@ class InfiniteGainControl(Control):
     """Toggle control effort by comparing measurement with setpoint.
 
     Equivalent to proportional control with infinite gain.
-
-    Direction specifies whether control effort tends to increase or decrease
-    the controlled value.
     """
-    def __init__(self, direction=True, *args, **kwargs):
-        self.direction = direction
-        super().__init__(*args, **kwargs)
-
     def compute_control_effort(self, measurement):
         if self.setpoint is None:
             return False
@@ -139,9 +140,26 @@ class InfiniteGainControl(Control):
 
         error = self.compute_error(measurement)
         if self.direction:
-            return error < 0
-        else:
             return error > 0
+        else:
+            return error < 0
+
+
+class ProportionalControl(Control):
+    """Scale control effort linearly with error."""
+    def __init__(self, gain, *args, **kwargs):
+        self.gain = gain
+        super().__init__(*args, **kwargs)
+
+    def compute_control_effort(self, measurement):
+        if self.setpoint is None:
+            return 0
+        if measurement is None:
+            return None
+
+        error = self.compute_error(measurement)
+        gain = self.gain if self.direction else -self.gain
+        return max(0.0, min(1.0, gain * error))
 
 
 # Lysis Heater Thermal Module

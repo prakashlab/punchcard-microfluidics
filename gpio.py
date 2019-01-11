@@ -83,7 +83,7 @@ class PWMPin(State):
         self.pwm.ChangeFrequency(frequency)
 
     def set_state(self, state):
-        self.pwm.ChangeDutyCycle(state)
+        self.pwm.ChangeDutyCycle(100.0 * state)
         super().set_state(state)
 
 
