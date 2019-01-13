@@ -74,18 +74,18 @@ class Thermistor(object):
 
 class Control(object):
     """Generic feedback control interface. Implement compute_control_effort.
-
-    Direction specifies whether control effort tends to increase or decrease
-    the controlled value.
     """
     def __init__(
-        self, initial_setpoint=None, setpoint_reached_epsilon=0, direction=True
+        self, initial_setpoint=None, min_output=0.0, max_output=1.0,
+        setpoint_reached_epsilon=0, output_increases_process_variable=True,
     ):
         self.setpoint = initial_setpoint
+        self.min_output = min_output
+        self.max_output = max_output
         self.after_setpoint_change = None
         self.setpoint_reached = False
         self.setpoint_reached_epsilon = setpoint_reached_epsilon
-        self.direction = direction
+        self.output_increases_pv = output_increases_process_variable
 
     def reset_setpoint_reached(self):
         self.setpoint_reached = False
@@ -115,6 +115,9 @@ class Control(object):
             < self.setpoint_reached_epsilon
         )
 
+    def clamp_output(self, output):
+        return max(self.min_output, min(self.max_output, output))
+
     def compute_control_effort(self, measurement):
         return None
 
@@ -139,10 +142,16 @@ class InfiniteGainControl(Control):
             return None
 
         error = self.compute_error(measurement)
-        if self.direction:
-            return error > 0
+        if self.output_increases_pv:
+            if error > 0:
+                return self.max_output
+            else:
+                return self.min_output
         else:
-            return error < 0
+            if error < 0:
+                return self.max_output
+            else:
+                return self.min_output
 
 
 class ProportionalControl(Control):
@@ -158,8 +167,8 @@ class ProportionalControl(Control):
             return None
 
         error = self.compute_error(measurement)
-        gain = self.gain if self.direction else -self.gain
-        return max(0.0, min(1.0, gain * error))
+        gain = self.gain if self.output_increases_pv else -self.gain
+        return self.clamp_output(gain * error)
 
 
 # Control
@@ -175,6 +184,8 @@ class ControllerReporter(object):
         self.start_time = None
         self.next_report_index = None
         self.enabled = False
+        self.process_variable = process_variable
+        self.process_variable_units = process_variable_units
         self.control_efforts = control_efforts
         self.file_prefix = file_prefix
         self.file_suffix = file_suffix
@@ -358,12 +369,16 @@ class Controller(object):
 
 class HeaterController(Controller):
     def __init__(
-        self, heater_control, heater, process_variable,
+        self, process_variable,
+        heater_control, heater,
+        additional_controls=[], additional_outputs=[],
         file_reporter=None, print_reporter=None
     ):
         super().__init__(
-            [heater_control], [heater], process_variable,
-            [self.file_reporter, self.print_reporter]
+            [heater_control] + additional_controls,
+            [heater] + additional_outputs,
+            process_variable,
+            [file_reporter, print_reporter]
         )
         self.heater = heater
         self.heater_control = heater_control
@@ -376,13 +391,22 @@ class HeaterController(Controller):
 
 
 class HeaterFanController(HeaterController):
-    def __init__(self, fan_control, fan, *args, **kwargs):
+    def __init__(
+            self, process_variable,
+            heater_control, heater,
+            fan_control, fan,
+            additional_controls=[], additional_outputs=[],
+            **kwargs
+    ):
+        super().__init__(
+            process_variable, heater_control, heater,
+            additional_controls=[fan_control] + additional_controls,
+            additional_outputs=[fan] + additional_outputs,
+            **kwargs
+        )
         self.fan = fan
         self.fan_control = fan_control
-        super().__init__(*args, **kwargs)
-        self.controls = [self.heater_control, self.fan_control]
-        self.outputs = [self.heater, self.fan]
 
     @property
     def output_effort_names(self):
-        return ('Heater PWM Duty', 'Fan State')
+        return ('Heater PWM Duty', 'Fan PWM Duty')

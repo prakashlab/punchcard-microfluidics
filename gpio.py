@@ -20,6 +20,12 @@ class State(object):
 
 
 class BinaryState(State):
+    def set_state(self, state):
+        if isinstance(state, bool):
+            super().set_state(state)
+        else:
+            super().set_state(state > 0)
+
     def turn_on(self):
         self.set_state(True)
 
@@ -46,8 +52,8 @@ class DigitalPin(BinaryState):
         self.set_state(initial_state)
 
     def set_state(self, state):
-        GPIO.output(self.pin, state)
         super().set_state(state)
+        GPIO.output(self.pin, self.state)
 
 
 # Analog IO
