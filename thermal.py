@@ -428,7 +428,7 @@ class HeaterFanController(HeaterController):
     def __init__(
             self, process_variable,
             heater_control, heater,
-            fan_control, fan,
+            fan_control, fan, fan_setpoint_offset=0.0,
             additional_controls=[], additional_outputs=[],
             **kwargs
     ):
@@ -440,7 +440,13 @@ class HeaterFanController(HeaterController):
         )
         self.fan = fan
         self.fan_control = fan_control
+        self.fan_setpoint_offset = fan_setpoint_offset
 
     @property
     def output_effort_names(self):
         return ('Heater PWM Duty', 'Fan PWM Duty')
+
+    def set_setpoint(self, setpoint):
+        super().set_setpoint(setpoint)
+        if setpoint is not None:
+            self.fan_control.set_setpoint(setpoint + self.fan_setpoint_offset)

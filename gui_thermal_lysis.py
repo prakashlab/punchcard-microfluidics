@@ -14,7 +14,7 @@ thermal_lysis_controller = thermal.HeaterFanController(
         C=3.008424040777896e-07
     ),
     thermal.PIDControl(  # Heater control
-        kp=0.1, ki=0.1,  # amount of duty cycle per deg C of error
+        0.0775, 0.00125, 0.0,  # Kp, Ki, Kd
         setpoint_reached_epsilon=0.5,  # deg C
         proportional_on_measurement=True
     ),
@@ -24,6 +24,7 @@ thermal_lysis_controller = thermal.HeaterFanController(
         output_increases_process_variable=False
     ),  # Fan control
     gpio.DigitalPin(4),  # Fan
+    fan_setpoint_offset=0.25,  # deg C
     file_reporter=thermal.ControllerReporter(
         interval=0.5,  # s
         file_prefix='gui_thermal_lysis_'
@@ -104,7 +105,7 @@ class Application(tk.Frame):
                 '_setpoint{:.1f}'.format(setpoint)
 
         (temperature, control_efforts) = thermal_lysis_controller.update()
-        heater_control_effort = control_efforts[0]
+        (heater_control_effort, fan_control_effort) = control_efforts
         if temperature is None:
             self.entry_heater_temp.config(text='-')
             self.after(invalid_temperature_resample_interval, self.updater)
@@ -115,9 +116,15 @@ class Application(tk.Frame):
             self.btn_heater_setpoint_1.config(fg='black')
             self.btn_heater_setpoint_2.config(fg='black')
         else:
-            btn_heater_setpoint.config(
-                fg='red' if heater_control_effort else 'blue'
-            )
+            if heater_control_effort and fan_control_effort:
+                button_color = 'purple'
+            elif heater_control_effort:
+                button_color = 'red'
+            elif fan_control_effort:
+                button_color = 'blue'
+            else:
+                button_color = 'black'
+            btn_heater_setpoint.config(fg=button_color)
         self.after(control_loop_interval, self.updater)
 
     # create widgets #
