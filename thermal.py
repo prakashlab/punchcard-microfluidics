@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 import numpy as np
+from simple_pid import PID
 
 
 # Components
@@ -169,6 +170,39 @@ class ProportionalControl(Control):
         error = self.compute_error(measurement)
         gain = self.gain if self.output_increases_pv else -self.gain
         return self.clamp_output(gain * error)
+
+
+class PIDControl(Control):
+    """Comute control effort using PID algorithm."""
+    def __init__(
+        self, kp, ki, kd, *args,
+        sample_time=None, proportional_on_measurement=False, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.pid = PID(
+            Kp=kp, Ki=ki, Kd=kd, setpoint=self.setpoint,
+            sample_time=sample_time,
+            output_limits=(self.min_output, self.max_output),
+            auto_mode=True,
+            proportional_on_measurement=proportional_on_measurement
+        )
+
+    def set_setpoint(self, setpoint):
+        super().set_setpoint(setpoint)
+        if self.setpoint is not None:
+            self.pid.setpoint = self.setpoint
+
+    def compute_control_effort(self, measurement):
+        if measurement is None:
+            self.pid.auto_mode = False
+            return None
+        if self.setpoint is None:
+            self.pid.auto_mode = False
+            self.pid(measurement)
+            return 0
+
+        self.pid.auto_mode = True
+        return self.pid(measurement)
 
 
 # Control

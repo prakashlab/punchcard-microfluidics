@@ -13,10 +13,10 @@ thermal_lysis_controller = thermal.HeaterFanController(
         B=0.00022717987892035313,
         C=3.008424040777896e-07
     ),
-    thermal.ProportionalControl(  # Heater control
-        gain=1.0 / 10.0,  # amount of duty cycle per deg C of error
+    thermal.PIDControl(  # Heater control
+        kp=0.1, ki=0.1,  # amount of duty cycle per deg C of error
         setpoint_reached_epsilon=0.5,  # deg C
-        output_increases_process_variable=True
+        proportional_on_measurement=True
     ),
     gpio.PWMPin(18),  # Heater
     thermal.InfiniteGainControl(
