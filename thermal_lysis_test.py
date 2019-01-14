@@ -26,7 +26,7 @@ descending_setpoint_record_sequence = [
 ]
 setpoint_record_sequence = (
     ascending_setpoint_record_sequence
-#    + descending_setpoint_record_sequence
+    + descending_setpoint_record_sequence
 )
 
 
@@ -44,5 +44,4 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
-    pass
+    main()

@@ -206,14 +206,10 @@ class PIDControl(Control):
 
     def compute_control_effort(self, measurement):
         if measurement is None:
-            self.pid.auto_mode = False
             return None
         if self.setpoint is None or not self.enabled:
-            self.pid.auto_mode = False
-            self.pid(measurement)
             return 0
 
-        self.pid.auto_mode = True
         return self.pid(measurement)
 
 
