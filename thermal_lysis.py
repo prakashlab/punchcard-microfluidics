@@ -123,7 +123,11 @@ def run_controller_sequence(
     print('Finished!')
 
 
-def main():
+def run_control_sequence(
+    setpoint_record_sequence, control_loop_interval, sequence_name,
+    preflight_record=None, postflight_record=None
+):
+    controller.file_reporter.file_prefix = '{}_'.format(sequence_name)
     # Build sequence reporter
     sequence_string = '-'.join(
         '{:.1f},{:.1f}'.format(
@@ -133,7 +137,7 @@ def main():
     )
     sequence_reporter = thermal.ControllerReporter(
         interval=file_reporter_interval,
-        file_prefix='thermal_lysis_',
+        file_prefix='{}_'.format(sequence_name),
         file_suffix='_setpoints{}'.format(sequence_string)
     )
     sequence_reporter.control_efforts = controller.output_effort_names
@@ -171,9 +175,17 @@ def main():
         )
 
 
-if __name__ == '__main__':
+def main():
     try:
-        main()
+        run_control_sequence(
+            setpoint_record_sequence, control_loop_interval, 'thermal_lysis',
+            preflight_record=preflight_record,
+            postflight_record=postflight_record
+        )
     except KeyboardInterrupt:
         print('Quitting early...')
     gpio.cleanup()
+
+
+if __name__ == '__main__':
+    main()
