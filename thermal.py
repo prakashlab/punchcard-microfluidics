@@ -344,6 +344,8 @@ class Controller(object):
         self.outputs = [output for output in outputs]
         self.process_variable = process_variable
         self.reporters = [reporter for reporter in reporters]
+        self.resettable_reporters = [reporter for reporter in reporters]
+        self.disableable_reporters = [reporter for reporter in reporters]
 
         for reporter in self.reporters:
             if reporter is not None:
@@ -359,15 +361,32 @@ class Controller(object):
         for control in self.controls:
             control.set_setpoint(setpoint)
 
+    @property
+    def setpoint_reached(self):
+        return self.controls[0].setpoint_reached
+
     def reset(self):
         self.reset_reporters()
-        for control in self.controls:
-            control.reset_setpoint_reached()
+        self.reset_controls()
 
     def reset_reporters(self):
-        for reporter in self.reporters:
+        for reporter in self.resettable_reporters:
             if reporter is not None:
                 reporter.reset()
+
+    def enable_reporters(self):
+        for reporter in self.disableable_reporters:
+            if reporter is not None:
+                reporter.enable()
+
+    def disable_reporters(self):
+        for reporter in self.disableable_reporters:
+            if reporter is not None:
+                reporter.disable()
+
+    def reset_controls(self):
+        for control in self.controls:
+            control.reset_setpoint_reached()
 
     def update(self):
         process_variable = self.process_variable.read()
@@ -450,3 +469,7 @@ class HeaterFanController(HeaterController):
         super().set_setpoint(setpoint)
         if setpoint is not None:
             self.fan_control.set_setpoint(setpoint + self.fan_setpoint_offset)
+
+    @property
+    def setpoint_reached(self):
+        return self.heater_control.setpoint_reached
