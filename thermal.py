@@ -8,7 +8,12 @@ from simple_pid import PID
 
 # Components
 
-class Thermistor(object):
+class ProcessVariable(object):
+    def read(self, unit=None):
+        return None
+
+
+class Thermistor(ProcessVariable):
     def __init__(
         self, reference_pin, thermistor_pin, bias_resistance=1962,
         A=1.125308852122e-03, B=2.34711863267e-04, C=8.5663516e-08
@@ -87,6 +92,7 @@ class Control(object):
         self.setpoint_reached = False
         self.setpoint_reached_epsilon = setpoint_reached_epsilon
         self.output_increases_pv = output_increases_process_variable
+        self.enabled = True
 
     def reset_setpoint_reached(self):
         self.setpoint_reached = False
@@ -99,6 +105,12 @@ class Control(object):
         self.reset_setpoint_reached()
         if callable(self.after_setpoint_change):
             self.after_setpoint_change(self.setpoint)
+
+    def enable(self):
+        self.enabled = True
+
+    def disable(self):
+        self.enabled = False
 
     def compute_error(self, measurement):
         if self.setpoint is None or measurement is None:
@@ -137,8 +149,8 @@ class InfiniteGainControl(Control):
     Equivalent to proportional control with infinite gain.
     """
     def compute_control_effort(self, measurement):
-        if self.setpoint is None:
-            return False
+        if self.setpoint is None or not self.enabled:
+            return 0
         if measurement is None:
             return None
 
@@ -162,7 +174,7 @@ class ProportionalControl(Control):
         super().__init__(*args, **kwargs)
 
     def compute_control_effort(self, measurement):
-        if self.setpoint is None:
+        if self.setpoint is None or not self.enabled:
             return 0
         if measurement is None:
             return None
@@ -196,7 +208,7 @@ class PIDControl(Control):
         if measurement is None:
             self.pid.auto_mode = False
             return None
-        if self.setpoint is None:
+        if self.setpoint is None or not self.enabled:
             self.pid.auto_mode = False
             self.pid(measurement)
             return 0

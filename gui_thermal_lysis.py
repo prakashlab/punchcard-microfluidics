@@ -10,6 +10,7 @@ invalid_temperature_resample_interval = 10  # ms
 class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
+        controller.file_reporter.file_prefix = 'gui_thermal_lysis_'
         # self.pack()
         self.grid()
         self.create_widgets()
